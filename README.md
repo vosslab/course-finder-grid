@@ -1,6 +1,6 @@
 # Course Schedule Email Reporter
 
-Automated schedule grid for Roosevelt University science courses: generates weekly Excel spreadsheets from Banner enrollment data and delivers faculty email reports via a tmux-based scheduler.
+Generates color-coded weekly schedule grids as Excel workbooks from course-listing HTML pages or CSV enrollment exports; lays sections on 15-minute time slots with subject and level colors; and emails enrollment-change reports on a tmux schedule.
 
 ## Quick start
 
