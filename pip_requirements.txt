@@ -1,0 +1,6 @@
+# Runtime dependencies
+lxml  # fast XML and HTML parsing with XPath support
+openpyxl  # read and write Excel .xlsx files
+py-applescript  # run AppleScript from Python (macOS automation)
+pyyaml  # YAML parsing and serialization
+requests  # simple HTTP library

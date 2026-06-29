@@ -4,7 +4,19 @@ report_*.txt
 _temp*.?*
 OTHER_REPOS/
 # === LOCAL ===
-# Template-only ignores.
+# Runtime state lives at the repo root, out of the course_scheduling/ package;
+# data/ holds the tracked sample input and stays tracked.
+cache/
+logs/
+output/
+# Local reference workbooks (golden/manual comparison artifacts), not tracked
+classic/
+# Legacy in-package generated artifacts (re-seeded at the new repo-root dirs)
+course_scheduling/*_schedule_grid-*.xlsx
+course_scheduling/csv_cache/
+course_scheduling/logs/
+course_scheduling/*_debug.csv
+course_scheduling/filtered_input.csv
 # === PYTHON ===
 build/
 dist/
