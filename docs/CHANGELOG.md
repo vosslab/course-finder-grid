@@ -4,6 +4,16 @@
 
 ### Additions and New Features
 
+- Docset refresh (docset-updater chain): created `docs/CODE_ARCHITECTURE.md`,
+  `docs/FILE_STRUCTURE.md`, `docs/INSTALL.md`, `docs/USAGE.md`,
+  `docs/FILE_FORMATS.md`, `docs/YAML_FILE_FORMAT.md`,
+  `docs/TROUBLESHOOTING.md`, `docs/RELEASE_HISTORY.md`; updated `AGENTS.md`;
+  rewrote `README.md` quick-start and documentation links; screenshot-docs
+  rendered the real color-coded schedule grid (full-width landscape, all five
+  weekday columns) from `output/Fall_2026_schedule_grid-2026_06_29.xlsx` via
+  LibreOffice headless export and embedded `docs/screenshots/grid_example.png`
+  into `README.md`.
+
 - Patch 13: move runtime state (cache, logs, generated grids) out of
   `course_scheduling/` to repo-root `cache/` `logs/` `output/`; gitignored;
   `course_scheduling/` is now code-only.
@@ -471,3 +481,15 @@
   -- and kept `email_schedule_report.py` as the thin 448-line orchestrator
   CLI with its shebang and `__main__` intact; `full_course_memory.py` is
   byte-unchanged; all hygiene gates pass (161/161).
+
+- Verified the `course_scheduling` package rewrite reproduces the old flat
+  script behavior using a throwaway end-to-end parity harness with three
+  lanes: pure-function parity, grid data and color parity, and email and
+  change-detection parity. The harness scripts and their HTML fixtures have
+  since been removed per the plan; the durable evidence is retained under
+  `docs/active_plans/reports/`: the trust report
+  (`course_scheduling_rewrite_trust_report.md`) plus three lane records
+  (`wp2a_pure_function_parity_lane.md`, `wp2b_grid_data_color_parity.md`,
+  `wp2c_email_change_detection_parity.md`). All disclosed differences were
+  accepted-intentional except one inconclusive-fixture item. Verdict: SAFE to
+  retire the old flat scripts, pending a separate human retirement action.
