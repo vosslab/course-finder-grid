@@ -14,7 +14,6 @@ tests/
     test_*.mjs           smoke/layout/regression
     repo_root.mjs        shared helper: exports REPO_ROOT (centrally propagated)
     helpers.mjs          shared test utilities
-    fixtures/            test data
     e2e/                 OPTIONAL: full-path browser walkthroughs
       test_*.mjs
   e2e/                   non-browser whole-system E2E (shell/Python)
@@ -42,8 +41,6 @@ The optional `tests/playwright/e2e/` subfolder groups full-path browser walkthro
 ## How pytest stays fast
 
 `tests/conftest.py` declares `collect_ignore = ["e2e", "playwright"]`, so pytest never collects test functions from those subtrees, regardless of filename inside them. The filename conventions (`e2e_*` prefix in `tests/e2e/`, `test_*.mjs` for Playwright) are a readability layer on top of this active guard.
-
-Note: `test_test_naming_conventions.py` enforced these naming rules but has been moved to the TypeScript overlay (`templates/typescript/tests/test_test_naming_conventions.py`). It ships only to `REPO_TYPE=typescript` consumer repos because its checks target `tests/e2e/` and `tests/playwright/` subtrees that exist only in TypeScript repos. In this Python repo, neither `tests/e2e/` nor `tests/playwright/` is present, so all checks early-skipped and the module was effectively inert here. Accepted consequence: the universal e2e naming guards now run only in TypeScript repos.
 
 Important: `collect_ignore` only affects pytest test collection. The repo's lint tests (ASCII compliance, whitespace, pyflakes, indentation, shebangs, etc.) enumerate files via `git ls-files` and still scan files inside `tests/playwright/` and `tests/e2e/`. A non-ASCII character in `tests/playwright/foo.mjs` will still fail the ASCII check - only execution as a pytest test is suppressed.
 

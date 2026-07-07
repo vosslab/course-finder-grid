@@ -1,23 +1,16 @@
 #!/usr/bin/env bash
-# dist_clean.sh - deep clean: wipe build artifacts, tool caches, and dependency
-# installs to return the repo to a distribution-clean checkout.
+# clean_build.sh - light clean: wipe build output, tool caches, and test
+# artifacts while KEEPING dependency installs (node_modules, Rust target/) so no
+# reinstall or full recompile is needed afterward.
 #
-# Front door: run this directly as ./devel/dist_clean.sh. This is the deep reset,
-# used when preparing the repo for distribution or forcing a clean dependency
-# reinstall. The lighter everyday build clean is devel/clean_build.sh (wired to
-# `npm run clean`), which leaves node_modules intact.
+# Front door: this is the everyday build cleaner, wired to `npm run clean` in
+# TypeScript repos. Run directly as ./devel/clean_build.sh. For a deep reset that
+# also removes node_modules and Rust target/ (a distribution-clean checkout), use
+# devel/dist_clean.sh instead. Both keep the committed package-lock.json.
 #
-# Keeps package-lock.json: it is committed and drives reproducible `npm ci`.
-#
-# Universal across repo types (python, typescript, rust). Patterns that do
-# not exist in a given repo are silently skipped via `nullglob` + an
-# existence check, so no false-positive output.
-#
-# After this runs you may need to reinstall language-specific dependencies
-# before the usual gates work again:
-#   typescript: npm install
-#   python:     pip install -r pip_requirements.txt -r pip_requirements-dev.txt
-#   rust:       cargo build (recompiles dependencies on next invocation)
+# Universal across repo types (python, typescript, rust). Patterns that do not
+# exist in a given repo are silently skipped via `nullglob` + an existence
+# check, so no false-positive output.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
@@ -32,6 +25,8 @@ delete_path() {
 }
 
 delete_find_matches() {
+	local label="$1"
+	shift
 	local match
 	while IFS= read -r -d '' match; do
 		rm -rf "$match"
@@ -52,10 +47,6 @@ delete_path meta.json
 delete_path stats.html
 delete_find_matches tsbuildinfo -type f -name '*.tsbuildinfo'
 
-# JS dependency installs (forces clean reinstall on next npm install). Keeps
-# package-lock.json, which is committed and drives reproducible npm ci.
-delete_path node_modules
-
 # JS/TS tool caches.
 delete_path .cache
 delete_path .eslintcache
@@ -68,10 +59,6 @@ delete_path .swiftpm
 delete_path DerivedData
 delete_find_matches xcresult -type d -name '*.xcresult'
 delete_find_matches xcuserdata -type d -name 'xcuserdata'
-delete_find_matches PackageResolved -type f -path '*/xcshareddata/swiftpm/Package.resolved'
-delete_find_matches packageBuild -type d -path './Packages/*/.build'
-delete_find_matches packageSwiftpm -type d -path './Packages/*/.swiftpm'
-delete_find_matches packageResolved -type f -path './Packages/*/Package.resolved'
 
 # Test outputs (Playwright, coverage).
 delete_path test-results
@@ -85,8 +72,9 @@ delete_find_matches pytest_cache -type d -name '.pytest_cache'
 delete_find_matches mypy_cache -type d -name '.mypy_cache'
 delete_find_matches ruff_cache -type d -name '.ruff_cache'
 
-# Rust build outputs.
-delete_path target
+# Dependency installs (node_modules, Rust target/) and the committed
+# package-lock.json are intentionally KEPT here. Use devel/dist_clean.sh for a
+# full reset that also removes node_modules and target/.
 
 if [ "${#DELETED[@]}" -eq 0 ]; then
 	echo "Nothing to clean."

@@ -23,7 +23,7 @@ Run this checklist before writing a new pytest or approving one in review. Any u
 - [ ] One or two assertions per function (not five on a simple function).
 - [ ] Test body free of complex logic; complex logic moved to a helper and tested there.
 - [ ] Targets code that will remain in the repo (not `_temp.*` or ad-hoc debugging scripts).
-- [ ] Uses inline, self-contained inputs rather than an external on-disk data file that can move or be deleted.
+- [ ] Writes setup and test inputs inline rather than in an external on-disk data file, except for the fixture cases listed in [Fixture policy](#fixture-policy).
 
 See [Good tests](#good-tests) for examples of stable assertion shapes and [Brittle tests](#brittle-tests) for the rationale behind each red flag above.
 
@@ -33,12 +33,12 @@ See [Good tests](#good-tests) for examples of stable assertion shapes and [Britt
 * `tests/` (including `tests/playwright/` and `tests/e2e/`) is the only place `assert` statements should appear in this repo. Plain scripts and library modules must not contain `assert`. See [PYTHON_STYLE.md](PYTHON_STYLE.md#assert) for the rationale (module-level asserts slow script startup).
 * Pytest is the fast lane: keep tests deterministic and quick. Slow end-to-end tests live in `tests/playwright/` (browser-driven) and `tests/e2e/` (shell/Python) and run outside pytest (excluded via `collect_ignore = ["e2e", "playwright"]` in `tests/conftest.py`); see [E2E_TESTS.md](E2E_TESTS.md).
 * Store tests in `tests/` with files named `test_*.py`.
-* Use `tests/conftest.py` for pytest configuration, fixtures, collection hooks, and shared pytest setup.
+* Use `tests/conftest.py` for pytest configuration, collection hooks, and shared pytest setup.
 * Test functions should be named `test_*` and should use plain `assert`.
 * Keep tests small and deterministic.
 * Avoid network calls, random behavior, and time based logic unless mocked.
-* Prefer fixtures for setup and shared resources.
-* Use built in fixtures like `tmp_path` instead of custom temp directories.
+* Keep setup inline and close to the test.
+* Use `tmp_path` for temp files.
 * Avoid complex logic inside tests.
 * If test logic needs comments, move the logic into helper functions and test those helpers.
 * Before writing any test, ask: "will this test still pass next week without code changes?"
@@ -50,13 +50,47 @@ See [Good tests](#good-tests) for examples of stable assertion shapes and [Britt
 * Do not write tests for `_temp.*` files, ad-hoc debugging scripts, or any code intended to be deleted shortly after use.
 * Tests in `tests/` are reserved for code that will remain in the repo.
 
+## Fixture policy
+
+Write test inputs directly in the test by default. Put the setup near the assertion so the test is
+easy to read, move, and maintain.
+
+Inline means the test input is written directly in the test file, close to the assertion. Use a
+literal string, literal object, short list, or a short helper function used only by tests in that
+same file.
+
+This policy covers both test data files under `tests/fixtures/` and custom `@pytest.fixture`
+functions.
+
+Use fixtures for these durable cases:
+
+1. Use the builtin `tmp_path` fixture when a test needs a temporary file or directory.
+2. Use the vendored `collect_report` autouse harness for hygiene report checks. See [Hygiene report files](#hygiene-report-files).
+3. Use an existing repo file directly when that real file's required shape or loader behavior is
+   what the test checks -- a shipped config, a template, or committed production data that already
+   exists for a non-test reason.
+
+For all other tests, write the input directly in the test.
+
+Use `tmp_path` for file-shaped test input -- a CSV, YAML, JSON, image, or similar -- that exists
+only for the test: write the inline data into a `tmp_path` file at runtime, so the data lives in the
+test and the file exists only during the run. Add a permanent committed file only when that file
+already has a non-test purpose in the repo, or when a human explicitly approves it as durable shared
+test infrastructure.
+
+During early implementation, keep scratch setup in the test. Once the behavior is pinned, keep that
+setup in the test instead of moving it into a shared fixture.
+
+Treat a committed `tests/fixtures/` directory as shared test infrastructure. Get explicit human
+sign-off before adding one. These directories often accumulate stale files after their first use.
+
 ## Three-tier test layout
 
 Test files are organized by execution model and scope:
 
 * **`tests/test_*.py`** - Fast, deterministic unit and integration tests. Rules: no network, no file I/O beyond `tmp_path`, no sleeps, no subprocess CLI round-trips. Examples: lint checks (pyflakes, ASCII compliance, indentation), parser correctness, round-trip invariants.
 * **`tests/e2e/`** - Non-browser end-to-end (shell or Python orchestration); excluded from pytest (outside scope of `pytest tests/`); run via explicit shell or Python runner. Examples: full bootstrap flow, multi-repo propagation with real git operations, CLI round-trip chains.
-* **`tests/playwright/`** - Browser-driven E2E; excluded from pytest; run via Playwright runner or explicit shell. Examples: full-stack web app flows, UI interaction and assertion, rendered-output verification.
+* **`tests/playwright/`** - Browser-driven E2E; excluded from pytest; run via Playwright runner or explicit shell. Examples: full-stack web app flows, UI interaction and assertion, rendered-output verification. The website family (`website` and its inheriting `typescript`) includes `PLAYWRIGHT_TEST_STYLE.md`, shipped via the `templates/website/` overlay, in their propagated `docs/` folder for browser test authoring rules.
 
 ## Runtime budget
 
@@ -111,11 +145,9 @@ at module import time, the failure takes the whole test module down with it, not
 Embed small real inputs directly in the test (a literal string, a short list, a few-line sample) so
 the case cannot drift out of existence.
 
-This is about external **data files**, not pytest fixtures. A `@pytest.fixture` that builds an
-object in memory, or `tmp_path` files the test writes itself during the run, are fine and preferred
-for setup. The hazard is a checked-in sample file the test reads at runtime: inline the content
-instead, or if the data is genuinely large, treat the round trip as an end-to-end check under
-`tests/e2e/` per [E2E_TESTS.md](E2E_TESTS.md).
+The hazard is a checked-in sample file the test reads at runtime: inline the content instead, or
+if the data is genuinely large, treat the round trip as an end-to-end check under `tests/e2e/` per
+[E2E_TESTS.md](E2E_TESTS.md).
 
 ## Basic commands
 
@@ -286,6 +318,10 @@ def test_topic(rel: str) -> None:
 	msg = file_utils.format_violation_assert_message(rel, VIOLATIONS_BY_FILE.get(rel, []), REPORT_NAME)
 	assert rel not in VIOLATIONS_BY_FILE, msg
 ```
+
+The `collect_report` autouse fixture above is the named shared-infrastructure exception under
+[Fixture policy](#fixture-policy): it stays a fixture because the harness itself, not
+test-specific data, is what needs to run once per module.
 
 Notes on the shape:
 

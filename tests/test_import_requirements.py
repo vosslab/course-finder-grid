@@ -22,7 +22,11 @@ REQUIREMENT_FILES = (
 	os.path.join("config_files", "pip_requirements-dev.txt"),
 	os.path.join("config_files", "pip_extras.txt"),
 )
-LOCAL_IMPORT_WHITELIST: set[str] = set()
+LOCAL_IMPORT_WHITELIST = {
+	# Vendored at ~/nsh/local-llm-wrapper and made importable via PYTHONPATH.
+	# Imported by bioproblems_site/llm_helpers.py and problem_set_title.py.
+	"local_llm_wrapper",
+}
 IMPORT_REQUIREMENT_ALIASES = {
 	"applescript": "py-applescript",
 	"bio": "biopython",
@@ -32,6 +36,7 @@ IMPORT_REQUIREMENT_ALIASES = {
 	"crypto": "pycryptodome",
 	"cv2": "opencv-python",
 	"docx": "python-docx",
+	"fitz": "pymupdf",
 	"google": "google-api-python-client",
 	"googleapiclient": "google-api-python-client",
 	"imdb": "IMDbPY",
