@@ -59,6 +59,24 @@ tmux attach -t course_email
 The daemon sends reports Mon-Thu at 8:03am and Fri at 8:03am and 6:07pm.
 The term code is set in `run_email_tmux.sh` (`TERM_CODE` variable).
 
+### Baseline priming
+
+Prime the cache and full-section memory before a loop starts without composing
+or sending email:
+
+```bash
+source source_me.sh && python3 tools/email_schedule_report.py -t 202710 --prime
+```
+
+`./run_email_tmux.sh` runs that prime step by default before it starts the
+daemon, so the first scheduled report is delta-only instead of a full initial
+dump. To skip priming after downtime and retain accumulated changes for the
+next report, start the launcher with `--no-prime`:
+
+```bash
+./run_email_tmux.sh --no-prime
+```
+
 ## Advanced tools
 
 ### tools/email_schedule_report.py
@@ -82,6 +100,8 @@ Flags:
 - `-n / --dry-run`: detect changes and print; do not send email (default).
 - `-e / --send-email`: send the email via Mail.app.
 - `--loop`: run on the recurring schedule instead of once.
+- `--prime`: fetch and persist a no-email baseline; cannot be combined with
+  `--loop`.
 
 ### tools/build_grid_from_csv.py
 

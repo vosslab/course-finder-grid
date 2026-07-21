@@ -3,8 +3,9 @@ End-to-end orchestration for one schedule report run.
 
 Loads the durable full-section memory, detects per-subject changes, builds the
 email text, generates the merged workbook in-process, sends the email (unless
-dry-run), and persists the cache and memory. Every step is an in-process call
-into the library; no sibling script is shelled out to.
+dry-run), and persists the cache and memory. A single-shot command runs this
+pipeline in-process; recurring loop fires start that command in a short-lived
+subprocess before it runs the pipeline.
 """
 
 # Standard Library
@@ -46,6 +47,33 @@ def setup_logging() -> None:
 			logging.FileHandler(log_file, mode="a"),
 		],
 	)
+
+
+#============================================
+
+def prime_baseline(term_code: str, subjects: list) -> None:
+	"""
+	Fetch and persist a baseline without composing or sending an email.
+
+	Args:
+		term_code: Banner term code.
+		subjects: Subject codes to fetch and cache.
+	"""
+	setup_logging()
+	logging.info("=== Course Schedule Baseline Prime ===")
+	memory = course_scheduling.full_course_memory.load_memory(
+		course_scheduling.csv_cache.FULL_MEMORY_PATH
+	)
+	tmp_dir = tempfile.mkdtemp(prefix="course_schedule_")
+	try:
+		course_scheduling.change_detect.check_for_changes(term_code, subjects, tmp_dir, memory)
+		course_scheduling.csv_cache.update_csv_cache(term_code, tmp_dir, subjects)
+		course_scheduling.full_course_memory.save_memory(
+			course_scheduling.csv_cache.FULL_MEMORY_PATH, memory
+		)
+		logging.info("baseline primed: %d subjects cached", len(subjects))
+	finally:
+		shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 #============================================

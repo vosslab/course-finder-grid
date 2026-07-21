@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-07-20
+
+### Behavior or Interface Changes
+
+- Patch 2: add baseline priming for the email-report daemon. `--prime` fetches
+  every subject, persists the cache and full-section memory, and sends no email;
+  `run_email_tmux.sh` now primes before starting the loop by default. Pass
+  `--no-prime` when a restart should preserve changes accumulated while the loop
+  was down for the next report.
+
+### Fixes and Maintenance
+
+- Patch 1: restore process isolation for recurring report fires. The import trace
+  showed that the long-lived daemon loaded PyObjC through the in-process report
+  pipeline, which kept a Python Dock icon present while the daemon slept. Each
+  scheduled fire now runs the report in a short-lived subprocess, and the daemon
+  imports `report_pipeline` lazily only in that child path. The scheduler and
+  pipeline module docstrings now describe that boundary accurately.
+
+### Decisions and Failures
+
+- Rejected the AppKit activation-policy approach because it would mask the Dock
+  symptom instead of removing the long-lived PyObjC load. macOS denied `/bin/ps`,
+  so the exact Dock-registration timing was not confirmed; the import trace and
+  the background-only daemon status check support the isolation fix.
+
 ## 2026-06-29
 
 ### Additions and New Features

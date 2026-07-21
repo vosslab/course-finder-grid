@@ -3,8 +3,8 @@ Sleep-loop scheduler for recurring schedule report runs.
 
 Owns only the question of when to run again: it computes the next scheduled
 slot, sleeps until then, and invokes a caller-supplied callback in-process. The
-report run itself (report_pipeline.run_report) is passed in as the callback, so
-this module shells out to nothing.
+loop entry supplies a callback that starts one short-lived report subprocess per
+scheduled fire, keeping the long-lived scheduler free of the report pipeline.
 
 Schedule:
   Mon-Thu: 8:03am
