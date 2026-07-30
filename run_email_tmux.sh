@@ -9,7 +9,7 @@
 #
 # Usage:
 #   ./run_email_tmux.sh
-#   ./run_email_tmux.sh --no-prime
+#   ./run_email_tmux.sh --skip-baseline-refresh
 #
 # The tmux session is named 'course_email'. Attach with:
 #   tmux attach -t course_email
@@ -18,14 +18,16 @@ SESSION_NAME="course_email"
 REPO_ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 LOGFILE="$REPO_ROOT/logs/email_schedule_report.log"
 TERM_CODE="202710"
-PRIME_ON=1
+REFRESH_BASELINE_ON=1
 
 if [ "$#" -eq 0 ]; then
 	:
-elif [ "$#" -eq 1 ] && [ "$1" = "--no-prime" ]; then
-	PRIME_ON=0
+elif [ "$#" -eq 1 ] && {
+		[ "$1" = "--skip-baseline-refresh" ] || [ "$1" = "--no-prime" ]
+	}; then
+	REFRESH_BASELINE_ON=0
 else
-	echo "Usage: $0 [--no-prime]"
+	echo "Usage: $0 [--skip-baseline-refresh]"
 	exit 1
 fi
 
@@ -39,21 +41,11 @@ if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
 	exit 0
 fi
 
-if [ "$PRIME_ON" -eq 1 ]; then
-	echo "Priming the baseline before daemon startup..."
-	if (
-		cd "$REPO_ROOT" || exit 1
-		source source_me.sh || exit 1
-		python3 tools/email_schedule_report.py -t "$TERM_CODE" --prime
-	); then
-		echo "Baseline prime completed."
-	else
-		echo "WARNING: Baseline prime failed; starting the daemon with the existing cache."
-	fi
-fi
-
 echo "Starting tmux session '$SESSION_NAME'..."
 SUPERVISOR_COMMAND="./tools/run_email_scheduler.sh \"$TERM_CODE\""
+if [ "$REFRESH_BASELINE_ON" -eq 0 ]; then
+	SUPERVISOR_COMMAND+=" --skip-baseline-refresh"
+fi
 TMUX_COMMAND="cd \"$REPO_ROOT\" && source source_me.sh && exec $SUPERVISOR_COMMAND"
 if ! tmux new-session -d -s "$SESSION_NAME" "$TMUX_COMMAND"; then
 	echo "ERROR: tmux could not create session '$SESSION_NAME'."

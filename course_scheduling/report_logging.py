@@ -78,7 +78,7 @@ def log_process_failure(mode: str, term_code: str, subjects: list) -> None:
 	Log the active exception with report-process context and traceback.
 
 	Args:
-		mode: Process mode such as prime, loop, dry-run, or send.
+		mode: Process mode such as baseline-refresh, loop, dry-run, or send.
 		term_code: Banner term code.
 		subjects: Subject codes handled by the process.
 	"""

@@ -18,10 +18,10 @@
 
 ### Behavior or Interface Changes
 
-- A failed baseline prime no longer prevents `run_email_tmux.sh` from starting
-  the recurring scheduler. The launcher warns and starts the daemon with the
-  existing cache, so a transient course-server failure cannot turn daemon
-  startup into a one-shot run.
+- A failed baseline refresh no longer prevents `run_email_tmux.sh` from
+  starting the recurring scheduler. The supervisor warns and enters the loop
+  with the existing cache, so a transient course-server failure cannot turn
+  daemon startup into a one-shot run.
 - Prime, dry-run, send, and loop processes now record their mode, term, and
   subjects at startup. Uncaught process errors persist one complete traceback;
   scheduled-child failures record their exit code and that the scheduler is
@@ -29,9 +29,11 @@
 
 ### Fixes and Maintenance
 
-- Moved the optional prime out of the tmux command and made tmux execute the
-  scheduler supervisor. The launcher now checks that the
-  `course_email` session survives startup before it prints a success message.
+- Replaced the tmux command's fragile `--prime && --loop` chain with a scheduler
+  supervisor. The supervisor refreshes the baseline inside tmux and continues
+  into the loop after a refresh failure, so `run_email_tmux.sh` remains a
+  detached launcher. The launcher checks that the `course_email` session
+  survives startup before it prints a success message.
 - Six independent audit passes found that the shell supervisor appended
   directly to the report log, bypassing rotation when Python failed before
   logging setup. Supervisor restart events now invoke the same stdlib rotating
@@ -48,9 +50,9 @@
   Internal Server Error, and no `course_email` tmux session remained. The
   launcher's `prime && loop` chain therefore never reached the loop.
 - Kept cache persistence fail-safe without making the daemon lifecycle
-  fail-closed. A prime writes the cache and full-section memory only after every
-  subject succeeds, but exhausted retries leave the prior state intact and no
-  longer prevent or permanently terminate the scheduler.
+  fail-closed. A baseline refresh writes the cache and full-section memory only
+  after every subject succeeds, but exhausted retries leave the prior state
+  intact and no longer prevent or permanently terminate the scheduler.
 - The six-pass audit identified a remaining persistence risk: cache CSVs and
   full-section memory are replaced sequentially, so disk failure or process
   death during that write phase can leave a mixed baseline. A transactional
@@ -63,16 +65,20 @@
 ### Developer Tests and Notes
 
 - `bash -n run_email_tmux.sh` and `git diff --check` pass.
-- A mocked launcher run forced the prime command to exit 23 and confirmed that
-  the launcher warned, created the recurring loop session, passed its liveness
-  check, and returned zero without making a network request.
+- A mocked launcher run confirmed that the launcher created the detached
+  recurring session, passed its liveness check, and returned zero without
+  invoking Python in the foreground.
 - Offline HTTP tests prove that a transient 500 recovers while a permanent 400
   fails immediately.
-- A mocked supervisor run forced scheduler exit 42, confirmed the delayed
-  restart, then stopped intentionally with status 143.
+- A mocked supervisor run forced baseline-refresh exit 23 and scheduler exit
+  42, confirmed that both failures were logged without terminating the daemon,
+  confirmed the delayed scheduler restart, then stopped intentionally with
+  status 143.
 - Focused logging tests confirm that process context and tracebacks persist and
   that oversized logs rotate to a numbered backup.
-- `source source_me.sh && pytest tests/` passes all 883 tests.
+- Shell behavior tests execute the real launcher and supervisor against offline
+  command mocks, protecting detached startup and both failure-containment paths.
+- `source source_me.sh && pytest tests/` passes the complete test suite.
 
 ## 2026-07-28
 

@@ -84,7 +84,7 @@ def test_process_failure_persists_context_and_traceback(
 		raise ValueError("simulated report failure")
 	except ValueError:
 		course_scheduling.report_logging.log_process_failure(
-			"prime", "202710", ["BIOL", "BCHM"]
+			"baseline-refresh", "202710", ["BIOL", "BCHM"]
 		)
 
 	flush_owned_handlers()
@@ -92,7 +92,7 @@ def test_process_failure_persists_context_and_traceback(
 		log_text = handle.read()
 	close_owned_handlers()
 
-	assert "mode=prime term=202710 subjects=BIOL,BCHM" in log_text
+	assert "mode=baseline-refresh term=202710 subjects=BIOL,BCHM" in log_text
 	assert "ValueError: simulated report failure" in log_text
 
 

@@ -65,33 +65,36 @@ permanent Python Dock icon.
 
 Runtime activity and errors are written to
 `logs/email_schedule_report.log`. This includes retry attempts, exhausted
-request failures, uncaught prime/report tracebacks, scheduled-child exit
+request failures, uncaught baseline-refresh/report tracebacks, scheduled-child exit
 statuses, and supervisor restarts. The log rotates at 5 MB and keeps three
 numbered backups.
 
-### Baseline priming
+### Refreshing the baseline
 
-Prime the cache and full-section memory before a loop starts without composing
-or sending email:
+Refresh the cache and full-section memory before a loop starts without
+composing or sending email:
 
 ```bash
-source source_me.sh && python3 tools/email_schedule_report.py -t 202710 --prime
+source source_me.sh && python3 tools/email_schedule_report.py \
+	-t 202710 --refresh-baseline
 ```
 
-`./run_email_tmux.sh` runs that prime step by default before it starts the
-daemon, so the first scheduled report is delta-only instead of a full initial
-dump. To skip priming after downtime and retain accumulated changes for the
-next report, start the launcher with `--no-prime`:
+`./run_email_tmux.sh` starts the detached tmux session immediately. Inside that
+session, the supervisor refreshes the baseline by default before entering the
+scheduler loop, so the first scheduled report is delta-only instead of a full
+initial dump. To preserve changes accumulated during downtime for the next
+report, skip that refresh:
 
 ```bash
-./run_email_tmux.sh --no-prime
+./run_email_tmux.sh --skip-baseline-refresh
 ```
 
 Transient network failures and HTTP 408, 429, 500, 502, 503, and 504 responses
-are retried with a fresh session and bounded backoff. If the default prime still
-fails, the launcher preserves the existing cache, prints a warning, and starts
-the daemon. It also confirms that the tmux session survives startup before
-reporting success.
+are retried with a fresh session and bounded backoff. If the default baseline
+refresh still fails, the supervisor preserves the existing cache, logs a
+warning, and enters the scheduler loop. The launcher confirms that the detached
+tmux session survives startup before reporting success. The older `--prime` and
+`--no-prime` spellings remain accepted for compatibility.
 
 ## Advanced tools
 
@@ -116,8 +119,8 @@ Flags:
 - `-n / --dry-run`: detect changes and print; do not send email (default).
 - `-e / --send-email`: send the email via Mail.app.
 - `--loop`: run on the recurring schedule instead of once.
-- `--prime`: fetch and persist a no-email baseline; cannot be combined with
-  `--loop`.
+- `--refresh-baseline`: fetch and persist a no-email starting snapshot; cannot
+  be combined with `--loop`. `--prime` is retained as an alias.
 
 ### tools/build_grid_from_csv.py
 

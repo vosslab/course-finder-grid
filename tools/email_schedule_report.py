@@ -50,7 +50,7 @@ def parse_args() -> argparse.Namespace:
 	Parse command-line arguments.
 
 	Returns:
-		argparse.Namespace with term_code, subjects, dry_run, loop, and prime.
+		Arguments with term, subjects, dry-run, loop, and baseline-refresh state.
 	"""
 	parser = argparse.ArgumentParser(
 		description="Download course HTML, detect changes, and email schedule grid xlsx."
@@ -78,7 +78,8 @@ def parse_args() -> argparse.Namespace:
 		help='Run on a recurring schedule (Mon-Thu 8:03am, Fri 8:03am + 6:07pm)',
 	)
 	mode_group.add_argument(
-		'--prime', action='store_true',
+		'--refresh-baseline', '--prime', dest='refresh_baseline',
+		action='store_true',
 		help='Fetch and save a baseline without composing or sending email',
 	)
 	args = parser.parse_args()
@@ -98,12 +99,12 @@ def process_mode(args: argparse.Namespace) -> str:
 		args: Parsed command-line arguments.
 
 	Returns:
-		One of loop, prime, dry-run, or send.
+		One of loop, baseline-refresh, dry-run, or send.
 	"""
 	if args.loop:
 		return "loop"
-	if args.prime:
-		return "prime"
+	if args.refresh_baseline:
+		return "baseline-refresh"
 	if args.dry_run:
 		return "dry-run"
 	return "send"
@@ -117,8 +118,8 @@ def run_mode(args: argparse.Namespace) -> None:
 
 	In --loop mode the callback is bound with the term and subjects so the
 	scheduler stays term- and subject-agnostic. In single-shot mode the report
-	runs once (dry-run by default; pass -e/--send-email to send). In --prime
-	mode, the baseline is fetched and persisted without an email.
+	runs once (dry-run by default; pass -e/--send-email to send). The
+	--refresh-baseline mode fetches and persists a snapshot without an email.
 	"""
 	term_code = args.term_code
 	subjects = args.subjects
@@ -150,8 +151,8 @@ def run_mode(args: argparse.Namespace) -> None:
 		return
 
 	import course_scheduling.report_pipeline as report_pipeline
-	if args.prime:
-		report_pipeline.prime_baseline(term_code, subjects)
+	if args.refresh_baseline:
+		report_pipeline.refresh_baseline(term_code, subjects)
 		return
 	report_pipeline.run_report(term_code, subjects, args.dry_run)
 

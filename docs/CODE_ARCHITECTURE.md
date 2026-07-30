@@ -174,8 +174,10 @@ tools/build_grid_from_csv.py
 ```text
 run_email_tmux.sh
   |
-  +--> short-lived --prime child          # optional; failure does not gate daemon
-  +--> tmux: tools/run_email_scheduler.sh # shell supervisor; restart on unexpected exit
+  +--> detached tmux: tools/run_email_scheduler.sh
+         |
+         +--> short-lived baseline refresh # optional; failure does not gate loop
+         +--> scheduler loop               # restart on unexpected exit
          |
          +--> email_schedule_report.py --loop
                 |

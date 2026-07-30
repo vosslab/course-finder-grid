@@ -33,7 +33,7 @@ REPO_ROOT = os.path.dirname(PACKAGE_DIR)
 
 #============================================
 
-def prime_baseline(term_code: str, subjects: list) -> None:
+def refresh_baseline(term_code: str, subjects: list) -> None:
 	"""
 	Fetch and persist a baseline without composing or sending an email.
 
@@ -42,7 +42,7 @@ def prime_baseline(term_code: str, subjects: list) -> None:
 		subjects: Subject codes to fetch and cache.
 	"""
 	course_scheduling.report_logging.setup_logging()
-	logging.info("=== Course Schedule Baseline Prime ===")
+	logging.info("=== Course Schedule Baseline Refresh ===")
 	memory = course_scheduling.full_course_memory.load_memory(
 		course_scheduling.csv_cache.FULL_MEMORY_PATH
 	)
@@ -53,7 +53,7 @@ def prime_baseline(term_code: str, subjects: list) -> None:
 		course_scheduling.full_course_memory.save_memory(
 			course_scheduling.csv_cache.FULL_MEMORY_PATH, memory
 		)
-		logging.info("baseline primed: %d subjects cached", len(subjects))
+		logging.info("baseline refreshed: %d subjects cached", len(subjects))
 	finally:
 		shutil.rmtree(tmp_dir, ignore_errors=True)
 

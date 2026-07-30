@@ -28,12 +28,12 @@ Cause: The external course server returned a transient error or is unavailable.
 Fix: The downloader retries transient network failures and HTTP 408, 429, 500,
 502, 503, and 504 responses with a fresh session and bounded backoff. If every
 attempt fails, the current run stops without replacing the existing cache. A
-failed startup prime does not stop the daemon, and a failed scheduled report
-child does not stop the scheduler. The tmux supervisor also restarts the
-scheduler after an unexpected process exit. The terminal failure and traceback
-are retained in `logs/email_schedule_report.log`. A final HTTP error response
-is also saved to `error_500.html`; connection and timeout failures have no
-response body to save.
+failed startup baseline refresh does not stop the daemon, and a failed
+scheduled report child does not stop the scheduler. The tmux supervisor also
+restarts the scheduler after an unexpected process exit. The terminal failure
+and traceback are retained in `logs/email_schedule_report.log`. A final HTTP
+error response is also saved to `error_500.html`; connection and timeout
+failures have no response body to save.
 
 ## Grid is missing or empty
 

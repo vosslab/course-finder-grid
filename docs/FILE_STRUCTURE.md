@@ -100,6 +100,7 @@ tests/
 +- test_cli_filters.py              # filter predicate unit tests
 +- test_full_course_memory.py       # full-section memory unit tests
 +- test_banner_http.py              # transient Course Finder recovery tests
++- test_email_daemon_scripts.py     # detached launcher + restart supervision tests
 +- test_report_logging.py           # traceback persistence + log rotation tests
 +- test_pyflakes_code_lint.py       # repo-wide pyflakes gate
 +- test_function_typing.py          # type-annotation enforcement
