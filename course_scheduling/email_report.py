@@ -54,7 +54,8 @@ def build_date_header(today: datetime.date, last_run: datetime.date | None) -> s
 #============================================
 
 def build_email_body(today: datetime.date, last_run: datetime.date | None,
-		changed_subjects: list, total_count: int, change_summary: str) -> str:
+		changed_subjects: list, total_count: int, change_summary: str,
+		unavailable_subjects: list) -> str:
 	"""
 	Build the email body from the detected changes.
 
@@ -64,13 +65,23 @@ def build_email_body(today: datetime.date, last_run: datetime.date | None,
 		changed_subjects: Subject codes with meaningful changes.
 		total_count: Total number of subjects checked this run.
 		change_summary: Human-readable summary of what changed.
+		unavailable_subjects: Subject codes omitted after a course-server error.
 
 	Returns:
 		Email body text (without the attachment line, appended by the caller).
 	"""
 	change_count = len(changed_subjects)
-	subjects_str = ", ".join(changed_subjects)
+	available_count = total_count - len(unavailable_subjects)
 	body = build_date_header(today, last_run)
-	body += f"{change_count} of {total_count} subjects have updated course data: {subjects_str}\n\n"
-	body += f"Changes detected:\n{change_summary}\n"
+	if changed_subjects:
+		subjects_str = ", ".join(changed_subjects)
+		body += f"{change_count} of {available_count} available subjects "
+		body += f"have updated course data: {subjects_str}\n\n"
+		body += f"Changes detected:\n{change_summary}\n"
+	else:
+		body += f"No course changes detected among {available_count} available subjects.\n"
+	if unavailable_subjects:
+		body += "\nData unavailable:\n"
+		for subject in unavailable_subjects:
+			body += f"{subject} data not available due to server error.\n"
 	return body

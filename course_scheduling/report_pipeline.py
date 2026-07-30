@@ -48,7 +48,9 @@ def refresh_baseline(term_code: str, subjects: list) -> None:
 	)
 	tmp_dir = tempfile.mkdtemp(prefix="course_schedule_")
 	try:
-		course_scheduling.change_detect.check_for_changes(term_code, subjects, tmp_dir, memory)
+		course_scheduling.change_detect.check_for_changes(
+			term_code, subjects, tmp_dir, memory, False
+		)
 		course_scheduling.csv_cache.update_csv_cache(term_code, tmp_dir, subjects)
 		course_scheduling.full_course_memory.save_memory(
 			course_scheduling.csv_cache.FULL_MEMORY_PATH, memory
@@ -81,11 +83,12 @@ def run_report(term_code: str, subjects: list, dry_run: bool) -> None:
 	# Create a temporary directory for downloads and parsed CSVs.
 	tmp_dir = tempfile.mkdtemp(prefix="course_schedule_")
 
-	changed_subjects, change_details, all_changed_subjects = course_scheduling.change_detect.check_for_changes(
-		term_code, subjects, tmp_dir, memory
+	check_result = course_scheduling.change_detect.check_for_changes(
+		term_code, subjects, tmp_dir, memory, True
 	)
+	changed_subjects, change_details, all_changed_subjects, unavailable_subjects = check_result
 
-	if not changed_subjects:
+	if not changed_subjects and not unavailable_subjects:
 		if all_changed_subjects:
 			course_scheduling.csv_cache.update_csv_cache(term_code, tmp_dir, all_changed_subjects)
 		# Persist first-run seeding and the term key even with no email to send.
@@ -97,14 +100,25 @@ def run_report(term_code: str, subjects: list, dry_run: bool) -> None:
 		return
 
 	logging.info("Changed subjects: %s", ", ".join(changed_subjects))
-	change_summary_text = course_scheduling.change_summary.build_change_summary(changed_subjects, change_details)
+	change_summary_text = course_scheduling.change_summary.build_change_summary(
+		changed_subjects, change_details
+	)
+	available_subjects = [
+		subject for subject in subjects
+		if subject not in unavailable_subjects
+	]
 
 	# Build email subject and body from today's date and the last run.
 	today = datetime.date.today()
 	email_subject = course_scheduling.email_report.build_email_subject(today)
-	last_run = course_scheduling.csv_cache.get_last_run_date(term_code, subjects)
+	last_run = course_scheduling.csv_cache.get_last_run_date(term_code, available_subjects)
 	email_body = course_scheduling.email_report.build_email_body(
-		today, last_run, changed_subjects, len(subjects), change_summary_text
+		today,
+		last_run,
+		changed_subjects,
+		len(subjects),
+		change_summary_text,
+		unavailable_subjects,
 	)
 
 	if dry_run:
@@ -118,8 +132,16 @@ def run_report(term_code: str, subjects: list, dry_run: bool) -> None:
 	# Generated grids land in the repo-root output/ dir, not in the package.
 	output_dir = os.path.join(REPO_ROOT, "output")
 	os.makedirs(output_dir, exist_ok=True)
-	grid_configs = course_scheduling.workbook_builder.default_grid_configs(term_code, subjects, output_dir)
-	xlsx_path = course_scheduling.workbook_builder.build_term_workbook(term_code, subjects, grid_configs, output_dir)
+	grid_configs = course_scheduling.workbook_builder.default_grid_configs(
+		term_code, available_subjects, output_dir
+	)
+	html_files = [
+		os.path.join(tmp_dir, f"course_finder_{term_code}_{subject}.html")
+		for subject in available_subjects
+	]
+	xlsx_path = course_scheduling.workbook_builder.build_term_workbook_from_html_files(
+		term_code, html_files, grid_configs, output_dir
+	)
 	email_body += f"\nAttached: {os.path.basename(xlsx_path)}\n"
 
 	# Send email first; if this raises (for example no user session), cache stays untouched.

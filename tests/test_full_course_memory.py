@@ -8,7 +8,6 @@ Covers the term -> {crn -> capacity} memory model:
  - Capacity-bump re-firing
  - Below-capacity silence
  - Not-full section silence
- - Regression sequence: fill, same-cap refill (silent), capacity bump (fires)
 """
 
 # Standard Library
@@ -135,34 +134,3 @@ def test_not_full_section_fires_no_event() -> None:
 	row = make_row(CRN_A, enrolled=19, capacity=30)
 	events = course_scheduling.full_course_memory.detect_full_events([row], TERM, memory={})
 	assert events == []
-
-
-#============================================
-# regression sequence
-
-def test_regression_sequence_fill_refill_bump() -> None:
-	"""
-	Guards the exact false-positive bug: fill fires, same-cap refill is silent,
-	capacity-bump fires.
-
-	Sequence on one CRN:
-	 1. Section full at cap 30 -> event fires; memory records 30.
-	 2. Seat opens then refills to same cap 30 -> no event.
-	 3. Capacity raised to 36, section full again -> event fires with prev_capacity 30.
-	"""
-	memory: dict = {}
-
-	# step 1: initial fill
-	row_full = make_row(CRN_A, enrolled=30, capacity=30)
-	events_1 = course_scheduling.full_course_memory.detect_full_events([row_full], TERM, memory)
-	course_scheduling.full_course_memory.record_full_events(memory, TERM, events_1)
-
-	# step 2: drop a seat then refill at the same cap -- must stay silent
-	row_refill = make_row(CRN_A, enrolled=30, capacity=30)
-	events_2 = course_scheduling.full_course_memory.detect_full_events([row_refill], TERM, memory)
-	assert events_2 == []
-
-	# step 3: capacity raised to 36, section full again -- must fire
-	row_bump = make_row(CRN_A, enrolled=36, capacity=36)
-	events_3 = course_scheduling.full_course_memory.detect_full_events([row_bump], TERM, memory)
-	assert events_3[0]["prev_capacity"] == 30

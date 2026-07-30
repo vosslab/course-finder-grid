@@ -22,6 +22,15 @@
   starting the recurring scheduler. The supervisor warns and enters the loop
   with the existing cache, so a transient course-server failure cannot turn
   daemon startup into a one-shot run.
+- An HTTP 5xx response for one subject now produces a partial report instead of
+  aborting the report child; retryable statuses exhaust bounded backoff first.
+  The email states that the subject's data is unavailable, the attachment
+  contains the successful subjects, and the failed subject's prior cache and
+  full-section memory remain untouched. The outage itself is reportable even
+  when the available subjects have no meaningful course changes.
+- Baseline refresh remains all-or-nothing. It does not use partial server
+  results, so a failed startup refresh cannot create a mixed starting
+  snapshot.
 - Prime, dry-run, send, and loop processes now record their mode, term, and
   subjects at startup. Uncaught process errors persist one complete traceback;
   scheduled-child failures record their exit code and that the scheduler is
@@ -42,6 +51,25 @@
 - Corrected the error-artifact docs: final HTTP error responses save
   `error_500.html`, while connection and timeout failures have no response body
   and are retained only in the report log.
+- Added a structured course-server response error so report orchestration can
+  distinguish Roosevelt HTTP 5xx responses from client errors, parser defects,
+  and other local failures.
+- The email attachment now reuses the successful HTML already downloaded for
+  change detection. This removes a second Banner request pass and guarantees
+  that the diff and workbook describe the same server snapshot.
+- Removed `tests/test_cli_filters.py`; its two tests checked dataclass fields
+  immediately after a thin `argparse.Namespace` mapping and did not pass the
+  `docs/PYTEST_STYLE.md` behavior checklist. Removed a redundant collection
+  length assertion from the grid E2E check, a duplicate internal capacity-bump
+  test, and the multi-assert README heading parser test.
+- A second checklist pass rejected newly drafted partial-report orchestration
+  tests that mocked internal call wiring, a retry-status test tied to a
+  tunable retry constant, a hardcoded available-subject count assertion, and a
+  redundant full-section regression sequence. The retained tests use small
+  fixed inputs and assert durable HTTP, parsing, or user-visible email behavior.
+- The six-pass code audit corrected the HTTP error docstring, distinguished
+  retryable from non-retryable 5xx responses in operator docs, and clarified
+  that the saved-HTML workbook helper writes outputs rather than downloads.
 
 ### Decisions and Failures
 
@@ -49,6 +77,20 @@
   while the prime downloaded BCHM, `error_500.html` contained an HTTP 500
   Internal Server Error, and no `course_email` tmux session remained. The
   launcher's `prime && loop` chain therefore never reached the loop.
+- The BCHM failure also reproduces during a manual Course Finder check and
+  displays Oracle branding. That supports treating the response as an upstream
+  Roosevelt Banner/database outage; it does not establish the deeper
+  Oracle-side cause.
+- Partial continuation is limited to HTTP 5xx responses. HTTP 4xx responses,
+  parser failures, and other defects still fail loudly because they may
+  indicate a bad request or local code problem.
+- The six-pass audit noted a first-success edge case: if one subject is
+  unavailable during a brand-new term's partial report, its already-full
+  sections can be reported as newly full when that subject recovers. This is an
+  accepted tradeoff rather than a blocker. The report prioritizes recent
+  changes, and an occasional missed or delayed baseline event is low impact;
+  subject-specific initialization state would add complexity without enough
+  practical benefit.
 - Kept cache persistence fail-safe without making the daemon lifecycle
   fail-closed. A baseline refresh writes the cache and full-section memory only
   after every subject succeeds, but exhausted retries leave the prior state
@@ -76,9 +118,12 @@
   status 143.
 - Focused logging tests confirm that process context and tracebacks persist and
   that oversized logs rotate to a numbered backup.
+- Focused offline tests confirm transient HTTP 500 recovery, immediate HTTP 400
+  failure, and the user-visible BCHM server-error notice.
 - Shell behavior tests execute the real launcher and supervisor against offline
   command mocks, protecting detached startup and both failure-containment paths.
-- `source source_me.sh && pytest tests/` passes the complete test suite.
+- `source source_me.sh && python3 -m pytest tests/` passes all 899 tests after
+  the checklist-driven removals.
 
 ## 2026-07-28
 

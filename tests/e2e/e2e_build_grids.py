@@ -97,10 +97,6 @@ def assert_workbook_tabs(xlsx_path: str, term_code: str) -> None:
 	}
 	wb = openpyxl.load_workbook(xlsx_path)
 	actual_tabs = set(wb.sheetnames)
-	# Exactly 9 tabs required.
-	assert len(actual_tabs) == 9, (
-		f"Expected 9 tabs, got {len(actual_tabs)}: {sorted(actual_tabs)}"
-	)
 	# Tab names must match the expected set exactly.
 	assert actual_tabs == expected_tabs, (
 		f"Tab mismatch.\n  Expected: {sorted(expected_tabs)}\n  Got:      {sorted(actual_tabs)}"

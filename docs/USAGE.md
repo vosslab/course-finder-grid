@@ -96,6 +96,14 @@ warning, and enters the scheduler loop. The launcher confirms that the detached
 tmux session survives startup before reporting success. The older `--prime` and
 `--no-prime` spellings remain accepted for compatibility.
 
+An HTTP 5xx response for one subject does not suppress the scheduled report
+for subjects the Roosevelt server returned successfully. Retryable statuses
+exhaust their bounded backoff first. The email names the unavailable subject,
+the attachment omits it, and its prior cache and full-section memory stay
+untouched. The report uses the same successful downloads for change detection
+and the attachment. Baseline refresh remains all-or-nothing so it never
+persists a partial starting snapshot.
+
 ## Advanced tools
 
 ### tools/email_schedule_report.py
@@ -209,7 +217,10 @@ refilled.
 - The download path uses a sessioned GET plus POST to select subjects without
   PST variables. Transient failures retry with a fresh session. A final HTTP
   error response is written to `error_500.html`; connection and timeout
-  failures have no response body and are recorded only in the report log.
+  failures have no response body and are recorded only in the report log. In
+  the email path, an HTTP 5xx response produces a partial report after bounded
+  retries when the status is retryable, with an explicit data-unavailable
+  notice.
 - The HTML workflow downloads one subject per request and merges the results.
 - Filenames produced by `./build_grids_from_html.py` include the term code; tabs are
   merged in fixed order and the raw-data tab is appended last.

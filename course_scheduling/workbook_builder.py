@@ -265,19 +265,21 @@ def merge_and_finalize(output_dir: str, grid_files: list, merged_path: str,
 
 #============================================
 
-def build_term_workbook(term_code: str, subjects: list, grid_configs: list, output_dir: str) -> str:
+def build_term_workbook_from_html_files(term_code: str, html_files: list,
+		grid_configs: list, output_dir: str) -> str:
 	"""
-	Build the merged schedule-grid workbook for one term and subject set.
+	Build the merged schedule-grid workbook from already-downloaded HTML.
 
-	Downloads each subject's HTML once, builds every grid in grid_configs,
-	merges them into a single tabbed workbook, writes a semester-label copy,
-	and cleans up the intermediate files.
+	Builds every grid in grid_configs, merges them into a single tabbed
+	workbook, writes a semester-label copy, and cleans up the intermediate
+	files. The email report uses this seam so its attachment comes from the
+	same successful downloads that were diffed.
 
 	Args:
 		term_code: Banner term code.
-		subjects: Subject codes to download once and grid across.
+		html_files: Saved Course Finder HTML paths to parse.
 		grid_configs: List of GridConfig entries (the grid matrix) in merge order.
-		output_dir: Directory for the downloads and generated workbook.
+		output_dir: Directory for generated workbook outputs.
 
 	Returns:
 		Path to the finished workbook (the label copy when one was written,
@@ -293,9 +295,6 @@ def build_term_workbook(term_code: str, subjects: list, grid_configs: list, outp
 
 	# Clean old outputs before generating a fresh set.
 	clean_old_files(output_dir, term_code, merged_path, label_path, lab_debug_path)
-
-	# Download HTML once per subject; every grid reuses the same files.
-	html_files = download_html_files(output_dir, term_code, subjects)
 
 	# Build each grid and assemble the merge list in configuration order.
 	# The common-hour and timeblock analysis tables are written by
@@ -317,4 +316,28 @@ def build_term_workbook(term_code: str, subjects: list, grid_configs: list, outp
 
 	# Prefer the semester-label copy when one was written.
 	xlsx_path = label_path if os.path.isfile(label_path) else merged_path
+	return xlsx_path
+
+
+#============================================
+
+def build_term_workbook(term_code: str, subjects: list,
+		grid_configs: list, output_dir: str) -> str:
+	"""
+	Download one subject set and build its merged schedule-grid workbook.
+
+	Args:
+		term_code: Banner term code.
+		subjects: Subject codes to download once and grid across.
+		grid_configs: List of GridConfig entries in merge order.
+		output_dir: Directory for the downloads and generated workbook.
+
+	Returns:
+		Path to the finished workbook.
+	"""
+	os.makedirs(output_dir, exist_ok=True)
+	html_files = download_html_files(output_dir, term_code, subjects)
+	xlsx_path = build_term_workbook_from_html_files(
+		term_code, html_files, grid_configs, output_dir
+	)
 	return xlsx_path

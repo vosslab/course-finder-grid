@@ -90,6 +90,8 @@ state (cache snapshots, logs, generated workbooks) lives at the repo root in
 - [course_scheduling/change_detect.py](../course_scheduling/change_detect.py): pure
   `evaluate_subject_changes` seam (used by both production and unit tests); also owns
   `check_for_changes`, which downloads and parses each subject then diffs against the cache.
+  Report mode records individual HTTP 5xx subjects as unavailable; baseline refresh mode
+  remains fail-closed.
 - [course_scheduling/csv_diff.py](../course_scheduling/csv_diff.py): CSV row loading and row-level
   comparison helpers.
 - [course_scheduling/csv_cache.py](../course_scheduling/csv_cache.py): on-disk cache under `cache/`;
@@ -105,7 +107,8 @@ state (cache snapshots, logs, generated workbooks) lives at the repo root in
   `Mail.app`; sends a report email with xlsx attachment to hardcoded recipients.
 - [course_scheduling/report_pipeline.py](../course_scheduling/report_pipeline.py): end-to-end
   orchestration for one report run (load memory, detect changes, compose email, generate workbook, send,
-  persist cache).
+  persist cache). A partial report omits unavailable subjects from the workbook and preserves their
+  prior cache and full-section memory.
 - [course_scheduling/report_scheduler.py](../course_scheduling/report_scheduler.py): sleep-loop
   scheduler; computes next run slot (Mon-Thu 8:03am, Fri 8:03am + 6:07pm), sleeps, then invokes
   a caller-supplied callback.
@@ -197,7 +200,7 @@ run_email_tmux.sh
                                      |
                                      +--> change_summary
                                      +--> email_report
-                                     +--> workbook_builder
+                                     +--> workbook_builder # reuse successful report downloads
                                      +--> email_sender      # AppleScript -> Mail.app
                                      +--> csv_cache         # persist snapshots
                                      +--> full_course_memory
@@ -207,8 +210,8 @@ run_email_tmux.sh
 
 - `pytest tests/` runs the full fast suite (unit + integration); E2E tests are excluded.
 - [tests/test_full_report_integration.py](../tests/test_full_report_integration.py): integration test
-  covering the change-detect / email-report pipeline with fixture HTML.
-- [tests/test_cli_filters.py](../tests/test_cli_filters.py): filter predicate unit tests.
+  covering full-section change detection and user-visible summaries with inline rows.
+- [tests/test_email_report.py](../tests/test_email_report.py): user-visible partial-report wording.
 - [tests/test_full_course_memory.py](../tests/test_full_course_memory.py): full-section memory logic.
 - `tests/e2e/` holds non-browser E2E scripts run directly (not via pytest):
   - [tests/e2e/e2e_build_grids.py](../tests/e2e/e2e_build_grids.py): full HTML -> xlsx pipeline smoke.

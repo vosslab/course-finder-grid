@@ -105,7 +105,8 @@ def download_and_parse_subject(term_code: str, subject: str, tmp_dir: str) -> st
 
 #============================================
 
-def check_for_changes(term_code: str, subjects: list, tmp_dir: str, memory: dict) -> tuple:
+def check_for_changes(term_code: str, subjects: list, tmp_dir: str,
+		memory: dict, allow_partial_server_results: bool) -> tuple:
 	"""
 	Download and parse each subject, compare against cache, detect full sections.
 
@@ -119,14 +120,17 @@ def check_for_changes(term_code: str, subjects: list, tmp_dir: str, memory: dict
 		subjects: Subject codes to download and compare.
 		tmp_dir: Temporary directory for working files.
 		memory: Full-section memory mapping, mutated in place when seeding.
+		allow_partial_server_results: Continue past HTTP 5xx responses so a
+			report can use the subjects the Roosevelt server returned.
 
 	Returns:
 		Tuple of (changed_subjects list, change_details dict keyed by subject,
-		all_changed_subjects list).
+		all_changed_subjects list, unavailable_subjects list).
 	"""
 	course_scheduling.csv_cache.ensure_cache_dir()
 	changed_subjects = []
 	all_changed_subjects = []
+	unavailable_subjects = []
 	change_details = {}
 	# A missing term key means this term has never been seen: seed instead of
 	# firing events. Captured before the loop so seeding mutating memory does
@@ -138,7 +142,18 @@ def check_for_changes(term_code: str, subjects: list, tmp_dir: str, memory: dict
 	saw_any_rows = False
 	saw_real_crn = False
 	for subject in subjects:
-		new_csv = download_and_parse_subject(term_code, subject, tmp_dir)
+		try:
+			new_csv = download_and_parse_subject(term_code, subject, tmp_dir)
+		except course_scheduling.banner_http.CourseServerResponseError as exc:
+			if not allow_partial_server_results or exc.status_code < 500:
+				raise
+			logging.error(
+				"%s data unavailable for this report after HTTP %d",
+				subject,
+				exc.status_code,
+			)
+			unavailable_subjects.append(subject)
+			continue
 		cached_csv = course_scheduling.csv_cache.cache_path(subject, term_code)
 		# Freshly parsed snapshot rows carry the "CRN" column.
 		new_rows = course_scheduling.csv_diff.load_csv_rows(new_csv)
@@ -177,4 +192,4 @@ def check_for_changes(term_code: str, subjects: list, tmp_dir: str, memory: dict
 		logging.info(
 			"CRN dataLabel absent from feed; Label fallback active for term %s", term_code
 		)
-	return changed_subjects, change_details, all_changed_subjects
+	return changed_subjects, change_details, all_changed_subjects, unavailable_subjects

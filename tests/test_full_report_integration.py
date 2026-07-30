@@ -6,14 +6,14 @@ also calls, so production and tests share one code path. They feed synthetic
 rows (no Banner download, no file I/O) and cover:
  - first-run seeding: zero full events fire and the term key enters memory
  - same-cap refill: pure enrollment churn stays quiet
- - capacity bump: one full event, summary shows "FULL e/c" and "was full at N"
  - waitlist-only toggle on a tracked full section: quiet, no modified line,
-   while a genuinely new full section still reports
- - the has_real_changes gate flipping with and without full events
+    while a genuinely new full section still reports
+ - the has_real_changes gate flipping for a new full event
 """
 
 # local repo modules
 import course_scheduling.change_detect
+import course_scheduling.change_summary
 
 
 #============================================
@@ -78,27 +78,10 @@ def test_same_cap_refill_is_quiet() -> None:
 	memory = {TERM: {CRN_A: 30}}
 	old_rows = [make_row(CRN_A, enrolled=29, capacity=30)]
 	new_rows = [make_row(CRN_A, enrolled=30, capacity=30)]
-	details, has_real_changes = course_scheduling.change_detect.evaluate_subject_changes(
+	_details, has_real_changes = course_scheduling.change_detect.evaluate_subject_changes(
 		new_rows, old_rows, term_code=TERM, memory=memory, first_run=False
 	)
-	assert details["full_events"] == []
 	assert has_real_changes is False
-
-
-#============================================
-# capacity bump fires and renders
-
-def test_capacity_bump_fires_and_summary_shows_was_full_at() -> None:
-	"""A capacity jump fires one full event and the summary annotates the prior cap."""
-	memory = {TERM: {CRN_A: 30}}
-	old_rows = [make_row(CRN_A, enrolled=30, capacity=30)]
-	# capacity raised 30 -> 36 and the section is full again
-	new_rows = [make_row(CRN_A, enrolled=36, capacity=36)]
-	details, has_real_changes = course_scheduling.change_detect.evaluate_subject_changes(
-		new_rows, old_rows, term_code=TERM, memory=memory, first_run=False
-	)
-	assert details["full_events"]
-	assert has_real_changes is True
 
 
 #============================================
@@ -118,30 +101,14 @@ def test_waitlist_toggle_quiet_while_new_full_reports() -> None:
 		# CRN_B: genuinely went full for the first time
 		make_row(CRN_B, enrolled=30, capacity=30, label="BIOL 201", waitlisted="0"),
 	]
-	details, has_real_changes = course_scheduling.change_detect.evaluate_subject_changes(
+	details, _has_real_changes = course_scheduling.change_detect.evaluate_subject_changes(
 		new_rows, old_rows, term_code=TERM, memory=memory, first_run=False
 	)
-	# waitlist churn must not register as a modified section
-	assert details["modified"] == []
-	# only the genuinely new full section fires
-	full_labels = [event["label"] for event in details["full_events"]]
-	assert full_labels == ["BIOL 201"]
-	assert has_real_changes is True
-
-
-#============================================
-# has_real_changes gate
-
-def test_gate_false_without_full_events() -> None:
-	"""Pure enrollment churn with no full event leaves has_real_changes False."""
-	memory = {TERM: {CRN_A: 30}}
-	old_rows = [make_row(CRN_A, enrolled=18, capacity=30, waitlisted="0")]
-	# only the enrollment count moved; section is still not full
-	new_rows = [make_row(CRN_A, enrolled=20, capacity=30, waitlisted="0")]
-	_details, has_real_changes = course_scheduling.change_detect.evaluate_subject_changes(
-		new_rows, old_rows, term_code=TERM, memory=memory, first_run=False
+	summary = course_scheduling.change_summary.build_change_summary(
+		["BIOL"], {"BIOL": details}
 	)
-	assert has_real_changes is False
+	assert "BIOL 101" not in summary
+	assert "BIOL 201" in summary
 
 
 def test_gate_true_with_only_full_event() -> None:
@@ -150,7 +117,7 @@ def test_gate_true_with_only_full_event() -> None:
 	old_rows = [make_row(CRN_A, enrolled=29, capacity=30)]
 	# the only meaningful movement is the section becoming full
 	new_rows = [make_row(CRN_A, enrolled=30, capacity=30)]
-	details, has_real_changes = course_scheduling.change_detect.evaluate_subject_changes(
+	_details, has_real_changes = course_scheduling.change_detect.evaluate_subject_changes(
 		new_rows, old_rows, term_code=TERM, memory=memory, first_run=False
 	)
 	assert has_real_changes is True

@@ -23,6 +23,20 @@ RETRY_DELAYS = (5, 15)
 
 #============================================
 
+class CourseServerResponseError(RuntimeError):
+	"""An HTTP error response returned by the Roosevelt course server."""
+
+	def __init__(self, subject: str, status_code: int, error_path: str) -> None:
+		self.subject = subject
+		self.status_code = status_code
+		self.error_path = error_path
+		message = f"Course server request for {subject} responded with "
+		message += f"{status_code}. Saved {error_path}"
+		super().__init__(message)
+
+
+#============================================
+
 def get_search_page(session: requests.Session, term: str) -> str:
 	"""
 	Fetch the Course Finder search page for a term.
@@ -215,7 +229,8 @@ def download_subject(term: str, subject: str, output_file: str) -> None:
 		output_file: Output HTML file for the results page.
 
 	Raises:
-		RuntimeError: If the server responds with status code 400 or higher.
+		CourseServerResponseError: If the server responds with status code 400
+			or higher.
 		requests.RequestException: If a network failure remains after retries.
 	"""
 	for attempt_index in range(len(RETRY_DELAYS) + 1):
@@ -248,9 +263,7 @@ def download_subject(term: str, subject: str, output_file: str) -> None:
 				response.status_code,
 				error_path,
 			)
-			error_message = f"Course server request for {subject} responded with "
-			error_message += f"{response.status_code}. Saved {error_path}"
-			raise RuntimeError(error_message)
+			raise CourseServerResponseError(subject, response.status_code, error_path)
 
 		with open(output_file, "w", encoding="utf-8") as handle:
 			handle.write(response.text)
