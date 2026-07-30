@@ -58,6 +58,16 @@ tmux attach -t course_email
 
 The daemon sends reports Mon-Thu at 8:03am and Fri at 8:03am and 6:07pm.
 The term code is set in `run_email_tmux.sh` (`TERM_CODE` variable).
+The tmux process supervises the pure-stdlib Python scheduler and restarts it
+after an unexpected exit. Report generation and AppleScript remain in
+short-lived child processes, so the sleeping daemon does not create a
+permanent Python Dock icon.
+
+Runtime activity and errors are written to
+`logs/email_schedule_report.log`. This includes retry attempts, exhausted
+request failures, uncaught prime/report tracebacks, scheduled-child exit
+statuses, and supervisor restarts. The log rotates at 5 MB and keeps three
+numbered backups.
 
 ### Baseline priming
 
@@ -76,6 +86,12 @@ next report, start the launcher with `--no-prime`:
 ```bash
 ./run_email_tmux.sh --no-prime
 ```
+
+Transient network failures and HTTP 408, 429, 500, 502, 503, and 504 responses
+are retried with a fresh session and bounded backoff. If the default prime still
+fails, the launcher preserves the existing cache, prints a warning, and starts
+the daemon. It also confirms that the tmux session survives startup before
+reporting success.
 
 ## Advanced tools
 
@@ -188,7 +204,9 @@ refilled.
 - Multi-line "When / Where" entries are split into multiple meetings for the same
   section.
 - The download path uses a sessioned GET plus POST to select subjects without
-  PST variables; `error_500.html` is written in the current directory on server error.
+  PST variables. Transient failures retry with a fresh session. A final HTTP
+  error response is written to `error_500.html`; connection and timeout
+  failures have no response body and are recorded only in the report log.
 - The HTML workflow downloads one subject per request and merges the results.
 - Filenames produced by `./build_grids_from_html.py` include the term code; tabs are
   merged in fixed order and the raw-data tab is appended last.

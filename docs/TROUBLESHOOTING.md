@@ -19,6 +19,22 @@ Fix:
 Note: The email-send path is macOS-only. Linux and Windows are not supported for
 this workflow.
 
+## Course server error
+
+Symptom: A download reports HTTP 500 or writes `error_500.html`.
+
+Cause: The external course server returned a transient error or is unavailable.
+
+Fix: The downloader retries transient network failures and HTTP 408, 429, 500,
+502, 503, and 504 responses with a fresh session and bounded backoff. If every
+attempt fails, the current run stops without replacing the existing cache. A
+failed startup prime does not stop the daemon, and a failed scheduled report
+child does not stop the scheduler. The tmux supervisor also restarts the
+scheduler after an unexpected process exit. The terminal failure and traceback
+are retained in `logs/email_schedule_report.log`. A final HTTP error response
+is also saved to `error_500.html`; connection and timeout failures have no
+response body to save.
+
 ## Grid is missing or empty
 
 Symptom: `./build_grids_from_html.py` exits 0 but the workbook has no course cells.
@@ -27,9 +43,10 @@ Possible causes and fixes:
 
 - **No matching sections after filtering.** Check the subject set
   (`--subject` flags) and the active term code (`-t TERM_CODE`).
-- **HTML files not downloaded.** Check `cache/` for `.html` files. On a
-  network error, `banner_http.py` writes `error_500.html` to the current
-  directory. Re-run or fetch the HTML manually.
+- **HTML files not downloaded.** Check `cache/` for `.html` files. A final HTTP
+  error response is saved to `error_500.html`; connection and timeout failures
+  are recorded in `logs/email_schedule_report.log`. Re-run or fetch the HTML
+  manually.
 - **Term code wrong.** Banner term codes are six digits (for example `202710`
   for Spring 2027). A wrong term returns an empty results page.
 

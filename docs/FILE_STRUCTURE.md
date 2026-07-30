@@ -71,6 +71,7 @@ course_scheduling/
 +- email_report.py              # email subject + body composition
 +- email_sender.py              # AppleScript transport via Mail.app
 +- report_pipeline.py           # end-to-end orchestration for one report run
++- report_logging.py            # rotating file + terminal logging, stdlib only
 +- report_scheduler.py          # sleep-loop scheduler (Mon-Thu + Fri schedule)
 ```
 
@@ -82,6 +83,7 @@ Secondary CLI entry points run directly or via `source source_me.sh && python3`.
 tools/
 +- build_grid_from_csv.py    # grid from draft-schedule CSV; full filter set
 +- email_schedule_report.py  # one-shot or looping change-detection report
++- run_email_scheduler.sh    # restart an unexpectedly exited loop daemon
 ```
 
 ### tests/
@@ -97,6 +99,8 @@ tests/
 +- test_full_report_integration.py  # integration: change-detect + email pipeline
 +- test_cli_filters.py              # filter predicate unit tests
 +- test_full_course_memory.py       # full-section memory unit tests
++- test_banner_http.py              # transient Course Finder recovery tests
++- test_report_logging.py           # traceback persistence + log rotation tests
 +- test_pyflakes_code_lint.py       # repo-wide pyflakes gate
 +- test_function_typing.py          # type-annotation enforcement
 +- test_shebangs.py                 # shebang + executable bit consistency
@@ -169,7 +173,7 @@ All generated artifacts are gitignored and live outside `course_scheduling/`.
 | Location | Contents |
 | --- | --- |
 | `cache/` | Per-subject CSV snapshots; `full_course_memory.yaml` (durable full-section memory) |
-| `logs/` | `email_schedule_report.log` (appended each run) |
+| `logs/` | Rotating `email_schedule_report.log` plus up to three numbered backups |
 | `output/` | Merged term workbook (`<term>-merged-grid.xlsx`), per-tab grid xlsx files, audit tables |
 | `classic/` | Local reference workbooks for manual comparison (not committed) |
 

@@ -1,5 +1,151 @@
 # Changelog
 
+## 2026-07-29
+
+### Additions and New Features
+
+- Added `tools/run_email_scheduler.sh`, a shell supervisor that keeps the
+  pure-stdlib Python scheduler running inside tmux. It records an unexpected
+  exit, waits 60 seconds, and restarts the loop; interrupt and termination
+  statuses remain intentional stops.
+- Added bounded transient recovery to `banner_http.download_subject`. Network
+  connection failures, timeouts, HTTP 408/429, and common 5xx statuses retry
+  with a fresh session after 5- and 15-second backoffs.
+- Added the pure-standard-library `report_logging` module. It writes to the
+  terminal and a 5 MB rotating `logs/email_schedule_report.log`, retaining
+  three numbered backups without importing the report pipeline, AppleScript,
+  or PyObjC into the sleeping scheduler.
+
+### Behavior or Interface Changes
+
+- A failed baseline prime no longer prevents `run_email_tmux.sh` from starting
+  the recurring scheduler. The launcher warns and starts the daemon with the
+  existing cache, so a transient course-server failure cannot turn daemon
+  startup into a one-shot run.
+- Prime, dry-run, send, and loop processes now record their mode, term, and
+  subjects at startup. Uncaught process errors persist one complete traceback;
+  scheduled-child failures record their exit code and that the scheduler is
+  continuing.
+
+### Fixes and Maintenance
+
+- Moved the optional prime out of the tmux command and made tmux execute the
+  scheduler supervisor. The launcher now checks that the
+  `course_email` session survives startup before it prints a success message.
+- Six independent audit passes found that the shell supervisor appended
+  directly to the report log, bypassing rotation when Python failed before
+  logging setup. Supervisor restart events now invoke the same stdlib rotating
+  logger, with terminal-only output as the fallback when that logger cannot
+  start.
+- Corrected the error-artifact docs: final HTTP error responses save
+  `error_500.html`, while connection and timeout failures have no response body
+  and are retained only in the report log.
+
+### Decisions and Failures
+
+- Diagnosed the daemon exit from current runtime evidence: the email log stopped
+  while the prime downloaded BCHM, `error_500.html` contained an HTTP 500
+  Internal Server Error, and no `course_email` tmux session remained. The
+  launcher's `prime && loop` chain therefore never reached the loop.
+- Kept cache persistence fail-safe without making the daemon lifecycle
+  fail-closed. A prime writes the cache and full-section memory only after every
+  subject succeeds, but exhausted retries leave the prior state intact and no
+  longer prevent or permanently terminate the scheduler.
+- The six-pass audit identified a remaining persistence risk: cache CSVs and
+  full-section memory are replaced sequentially, so disk failure or process
+  death during that write phase can leave a mixed baseline. A transactional
+  multi-file commit requires a separate architecture decision.
+- The audit also flagged `report_logging` deriving the repo root from its source
+  path rather than `git rev-parse`. That bootstrap tradeoff remains unresolved:
+  the source-relative path avoids making error logging depend on a successful
+  Git subprocess, but differs from the general repository rule.
+
+### Developer Tests and Notes
+
+- `bash -n run_email_tmux.sh` and `git diff --check` pass.
+- A mocked launcher run forced the prime command to exit 23 and confirmed that
+  the launcher warned, created the recurring loop session, passed its liveness
+  check, and returned zero without making a network request.
+- Offline HTTP tests prove that a transient 500 recovers while a permanent 400
+  fails immediately.
+- A mocked supervisor run forced scheduler exit 42, confirmed the delayed
+  restart, then stopped intentionally with status 143.
+- Focused logging tests confirm that process context and tracebacks persist and
+  that oversized logs rotate to a numbered backup.
+- `source source_me.sh && pytest tests/` passes all 883 tests.
+
+## 2026-07-28
+
+### Additions and New Features
+
+- Added `course_scheduling/course_title.py` with `smart_title_case()`, which
+  converts Banner's ALL CAPS course titles to readable title case. Roman
+  numerals and an allowlist of acronyms stay uppercase, short function words
+  lowercase in the middle of a title, and digit-bearing tokens are left alone,
+  so `ORGANIC CHEMISTRY II` renders as `Organic Chemistry II` rather than the
+  `Organic Chemistry Ii` that plain `.title()` produces.
+
+### Fixes and Maintenance
+
+- Rebased `smart_title_case()` on the 69 distinct course titles in the cached
+  BIOL/PHYS/CHEM/BCHM snapshots, which exposed two defects in the first draft.
+  A Roman numeral was matched only as a whole word, so the real Banner form
+  `GENERAL CHEMISTRY II-LECT` rendered as `General Chemistry Ii-Lect`; the
+  uppercase check now runs per hyphen-separated part. And `str.capitalize()`
+  uppercases position 0 only, so `ANATOMY &PHYSIOLOGY I`, where Banner runs the
+  ampersand into the next word, rendered as `Anatomy &physiology I`; a new
+  `capitalize_first_letter()` finds the first alphabetic character instead. All
+  69 cached titles now render cleanly.
+- Trimmed the acronym allowlist to Roman numerals plus DNA, RNA, PCR, NMR, and
+  MRI. The first draft carried AP, US, UK, GIS, and CAD on speculation; none of
+  them appear in any real title for these subjects.
+- Removed the whole-word `ALWAYS_UPPERCASE_WORDS` check in `format_title_word`.
+  Once the uppercase lookup moved into `format_title_part`, an unhyphenated word
+  reached it through a single-element split, so the earlier check was dead; the
+  uppercase and lowercase sets do not overlap, so nothing could reach it first.
+
+### Removals and Deprecations
+
+- Deleted five tests that failed the `docs/PYTEST_STYLE.md` checklist. The
+  known-acronym (`DNA`) and unknown-acronym (`MCAT`) cases asserted against
+  `ALWAYS_UPPERCASE_WORDS`, a tunable constant that is meant to grow, so
+  extending it correctly would have broken them. The empty-string case wrapped
+  `str.split`. The two diff-level `label_titles` cases duplicated facts the
+  rendering tests already prove end to end through the real report seam.
+
+### Behavior or Interface Changes
+
+- Every per-class line in the change report now names its course. The added
+  (`+`), removed (`-`), and modified (`~`) lines previously printed a bare label
+  such as `BCHM 430-20`, which did not say what the class was. All four line
+  kinds, including the now-full (`*`) line, print the title in title case.
+- `csv_diff.diff_rows` returns a new `label_titles` key mapping every label on
+  either side of the diff to its course title. Titles live only in the raw
+  snapshot rows, so a removed class takes its title from the still-on-disk
+  cached snapshot; the new row wins when a label appears on both sides, so a
+  retitled class is named by its current title while the `title: OLD->NEW`
+  field description carries the change.
+
+### Decisions and Failures
+
+- Scoped titles to the report path instead of adding a title field to the
+  downstream grid model. The grid renders by label and time slot and has no use
+  for a title, and a removed class exists only in the old snapshot, so no
+  forward data structure could carry it.
+- Banner's `Title` column stays the source of truth for wording; the new helper
+  changes capitalization only, never rewording or expanding a title. An acronym
+  outside `ALWAYS_UPPERCASE_WORDS` intentionally title-cases (`MCAT` becomes
+  `Mcat`); the fix is to extend that set, not to add heuristics.
+- Malformed Banner spacing is preserved rather than tidied. `ANATOMY
+  &PHYSIOLOGY I` renders as `Anatomy &Physiology I`, not `Anatomy & Physiology
+  I`, and `GENERAL CHEMISTRY II-DISC& LAB` keeps its `Disc&`. The report is a
+  view of the catalog, so a bad title stays visibly bad and the data-entry
+  problem remains fixable upstream in Banner instead of being hidden here.
+- Verified rendering offline against the real `cache/CHEM_202710.csv` rows
+  rather than by a live `--dry-run`, because the no-meaningful-change branch in
+  `report_pipeline.run_report` updates the CSV cache even under `--dry-run`,
+  which would have discarded the current diff baseline.
+
 ## 2026-07-20
 
 ### Behavior or Interface Changes

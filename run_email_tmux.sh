@@ -39,16 +39,34 @@ if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
 	exit 0
 fi
 
-echo "Starting tmux session '$SESSION_NAME'..."
 if [ "$PRIME_ON" -eq 1 ]; then
-	TMUX_COMMAND="cd $REPO_ROOT && source source_me.sh && python3 tools/email_schedule_report.py -t $TERM_CODE --prime && python3 tools/email_schedule_report.py --loop --term $TERM_CODE"
-else
-	TMUX_COMMAND="cd $REPO_ROOT && source source_me.sh && python3 tools/email_schedule_report.py --loop --term $TERM_CODE"
+	echo "Priming the baseline before daemon startup..."
+	if (
+		cd "$REPO_ROOT" || exit 1
+		source source_me.sh || exit 1
+		python3 tools/email_schedule_report.py -t "$TERM_CODE" --prime
+	); then
+		echo "Baseline prime completed."
+	else
+		echo "WARNING: Baseline prime failed; starting the daemon with the existing cache."
+	fi
 fi
 
-tmux new-session -d -s "$SESSION_NAME" \
-	"$TMUX_COMMAND"
+echo "Starting tmux session '$SESSION_NAME'..."
+SUPERVISOR_COMMAND="./tools/run_email_scheduler.sh \"$TERM_CODE\""
+TMUX_COMMAND="cd \"$REPO_ROOT\" && source source_me.sh && exec $SUPERVISOR_COMMAND"
+if ! tmux new-session -d -s "$SESSION_NAME" "$TMUX_COMMAND"; then
+	echo "ERROR: tmux could not create session '$SESSION_NAME'."
+	exit 1
+fi
 sleep 1
+
+if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+	echo "ERROR: Session '$SESSION_NAME' exited during daemon startup."
+	echo "Run the supervisor in the foreground to inspect the startup error:"
+	echo "  cd \"$REPO_ROOT\" && source source_me.sh && $SUPERVISOR_COMMAND"
+	exit 1
+fi
 
 echo "Session '$SESSION_NAME' started."
 echo "  attach: tmux attach -t $SESSION_NAME"

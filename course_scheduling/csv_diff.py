@@ -61,9 +61,10 @@ def diff_rows(new_rows: list, old_rows: list) -> dict:
 		old_rows: Previously cached row dicts.
 
 	Returns:
-		Dict with keys: added, removed, modified (lists of label strings) and
-		field_changes (detailed per-label field diffs). Full-section detection
-		lives in full_course_memory.detect_full_events, not in this diff.
+		Dict with keys: added, removed, modified (lists of label strings),
+		field_changes (detailed per-label field diffs), and label_titles (label
+		to course title, for report display). Full-section detection lives in
+		full_course_memory.detect_full_events, not in this diff.
 	"""
 	# Index rows by Label for comparison
 	old_by_label = {}
@@ -80,6 +81,18 @@ def diff_rows(new_rows: list, old_rows: list) -> dict:
 	new_labels = set(new_by_label.keys())
 	added = sorted(new_labels - old_labels)
 	removed = sorted(old_labels - new_labels)
+	# Course titles for report display. Titles live only in these raw snapshot
+	# rows, so they are carried out here as a label to title side map rather
+	# than added to the downstream grid model: the grid renders by label and
+	# time slot and has no use for a title, and a removed class exists only in
+	# the old snapshot, so no forward data structure could hold it.
+	label_titles = {}
+	for label, row in old_by_label.items():
+		label_titles[label] = row.get("Title", "")
+	# New rows win for labels present in both, so a modified class reports its
+	# current title.
+	for label, row in new_by_label.items():
+		label_titles[label] = row.get("Title", "")
 	# Columns that change with every enrollment update (noise). A waitlist
 	# forming or draining on an otherwise unchanged section stays quiet; full
 	# events come from the memory path, not this byte-level diff.
@@ -114,6 +127,7 @@ def diff_rows(new_rows: list, old_rows: list) -> dict:
 		"removed": removed,
 		"modified": modified,
 		"field_changes": field_changes,
+		"label_titles": label_titles,
 		"old_total": len(old_rows),
 		"new_total": len(new_rows),
 	}

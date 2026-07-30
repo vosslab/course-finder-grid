@@ -15,6 +15,7 @@ if _repo_root not in sys.path:
 	sys.path.insert(0, _repo_root)
 
 # local repo modules
+import course_scheduling.report_logging
 import course_scheduling.report_scheduler
 
 # Default science subject set; the library is subject-agnostic.
@@ -89,26 +90,62 @@ def parse_args() -> argparse.Namespace:
 
 #============================================
 
-def main() -> None:
+def process_mode(args: argparse.Namespace) -> str:
 	"""
-	Run the email schedule report once, prime a baseline, or loop on a schedule.
+	Return the human-readable execution mode for logging.
+
+	Args:
+		args: Parsed command-line arguments.
+
+	Returns:
+		One of loop, prime, dry-run, or send.
+	"""
+	if args.loop:
+		return "loop"
+	if args.prime:
+		return "prime"
+	if args.dry_run:
+		return "dry-run"
+	return "send"
+
+
+#============================================
+
+def run_mode(args: argparse.Namespace) -> None:
+	"""
+	Run the selected report mode after logging is configured.
 
 	In --loop mode the callback is bound with the term and subjects so the
 	scheduler stays term- and subject-agnostic. In single-shot mode the report
 	runs once (dry-run by default; pass -e/--send-email to send). In --prime
 	mode, the baseline is fetched and persisted without an email.
 	"""
-	args = parse_args()
 	term_code = args.term_code
 	subjects = args.subjects
 	if args.loop:
+		logging.info(
+			"Email scheduler loop starting: term=%s subjects=%s",
+			term_code,
+			",".join(subjects),
+		)
 		# Bind the sending child command into a zero-argument scheduler callback.
 		def report_callback() -> None:
 			"""Run one scheduled report pass in a short-lived sending child."""
 			command = build_child_command(term_code, subjects)
+			logging.info(
+				"Scheduled report child starting: term=%s subjects=%s",
+				term_code,
+				",".join(subjects),
+			)
 			result = subprocess.run(command, check=False)
 			if result.returncode != 0:
-				logging.warning("Scheduled report child failed with exit code %d.", result.returncode)
+				logging.error(
+					"Scheduled report child failed: term=%s exit_code=%d; scheduler continues",
+					term_code,
+					result.returncode,
+				)
+			else:
+				logging.info("Scheduled report child completed: term=%s", term_code)
 		course_scheduling.report_scheduler.run_loop(report_callback)
 		return
 
@@ -117,6 +154,30 @@ def main() -> None:
 		report_pipeline.prime_baseline(term_code, subjects)
 		return
 	report_pipeline.run_report(term_code, subjects, args.dry_run)
+
+
+#============================================
+
+def main() -> None:
+	"""
+	Configure logging and run one report-process mode.
+	"""
+	args = parse_args()
+	course_scheduling.report_logging.setup_logging()
+	mode = process_mode(args)
+	logging.info(
+		"Email schedule process starting: mode=%s term=%s subjects=%s",
+		mode,
+		args.term_code,
+		",".join(args.subjects),
+	)
+	try:
+		run_mode(args)
+	except Exception:
+		course_scheduling.report_logging.log_process_failure(
+			mode, args.term_code, args.subjects
+		)
+		raise
 
 
 if __name__ == '__main__':

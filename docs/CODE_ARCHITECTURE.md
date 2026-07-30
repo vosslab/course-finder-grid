@@ -37,7 +37,8 @@ state (cache snapshots, logs, generated workbooks) lives at the repo root in
 
 - [course_scheduling/banner_http.py](../course_scheduling/banner_http.py): opens a requests session,
   fetches the Banner Course Finder search page for a term, POSTs the FIND COURSES form per subject,
-  and saves the result HTML to `cache/`.
+  retries transient network/server failures with a fresh session and bounded backoff, and saves the
+  result HTML to `cache/`.
 - [course_scheduling/banner_parser.py](../course_scheduling/banner_parser.py): reads a saved HTML file
   with `lxml`, iterates `courseResultsBox` divs, and produces filtered course dicts plus raw and
   lab-debug audit rows.
@@ -171,24 +172,33 @@ tools/build_grid_from_csv.py
 ### Email change-detection path
 
 ```text
-tools/email_schedule_report.py  (--loop or one-shot)
+run_email_tmux.sh
   |
-  +--> report_scheduler           # (--loop only) sleep until next slot
-  +--> report_pipeline.run_report()
+  +--> short-lived --prime child          # optional; failure does not gate daemon
+  +--> tmux: tools/run_email_scheduler.sh # shell supervisor; restart on unexpected exit
          |
-         +--> csv_cache           # load cached CSVs from cache/
-         +--> full_course_memory  # load durable YAML memory
-         +--> change_detect       # download -> parse -> diff per subject
-         |      |
-         |      +--> banner_http + banner_parser
-         |      +--> csv_diff
-         |
-         +--> change_summary      # build human-readable diff text
-         +--> email_report        # compose subject + body
-         +--> workbook_builder    # generate merged workbook in temp dir
-         +--> email_sender        # AppleScript -> Mail.app -> send
-         +--> csv_cache           # persist new snapshots
-         +--> full_course_memory  # persist updated YAML memory
+         +--> email_schedule_report.py --loop
+                |
+                +--> report_logging       # pure-stdlib rotating file log
+                +--> report_scheduler     # pure-stdlib sleep loop
+                       |
+                       +--> short-lived one-shot report child
+                              |
+                              +--> report_pipeline.run_report()
+                                     |
+                                     +--> csv_cache
+                                     +--> full_course_memory
+                                     +--> change_detect
+                                     |      |
+                                     |      +--> banner_http + banner_parser
+                                     |      +--> csv_diff
+                                     |
+                                     +--> change_summary
+                                     +--> email_report
+                                     +--> workbook_builder
+                                     +--> email_sender      # AppleScript -> Mail.app
+                                     +--> csv_cache         # persist snapshots
+                                     +--> full_course_memory
 ```
 
 ## Testing and verification

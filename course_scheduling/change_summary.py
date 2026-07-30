@@ -1,6 +1,7 @@
 """Human-readable change summary builders for schedule diff reports."""
 
 # local repo modules
+import course_scheduling.course_title
 import course_scheduling.html_tokens
 
 # Display labels for columns shown in change summaries
@@ -22,6 +23,24 @@ def format_change_value(value: str) -> str:
 	if not cleaned:
 		return "(blank)"
 	return cleaned
+
+
+#============================================
+def format_display_title(raw_title: str) -> str:
+	"""
+	Normalize and title-case a course title for report display.
+
+	Args:
+		raw_title: Title text straight from a snapshot row or full event.
+
+	Returns:
+		Readable title case text, or "(blank)" when the title is empty.
+	"""
+	cleaned = format_change_value(raw_title)
+	if cleaned == "(blank)":
+		return cleaned
+	display_title = course_scheduling.course_title.smart_title_case(cleaned)
+	return display_title
 
 
 #============================================
@@ -84,6 +103,12 @@ def describe_field_change(column_name: str, old_value: str, new_value: str) -> s
 	label = COLUMN_DISPLAY_NAMES.get(column_name)
 	if label is None:
 		label = column_name.replace("_", " ").lower()
+	if column_name == "Title":
+		old_text = format_display_title(old_value)
+		new_text = format_display_title(new_value)
+		description = f"{label}: {old_text}->{new_text}"
+		return description
+
 	old_text = format_change_value(old_value)
 	new_text = format_change_value(new_value)
 	description = f"{label}: {old_text}->{new_text}"
@@ -110,6 +135,7 @@ def build_change_summary(changed_subjects: list, change_details: dict) -> str:
 		modified = details["modified"]
 		full_events = details["full_events"]
 		new_total = details["new_total"]
+		label_titles = details["label_titles"]
 		# Subject header with total class count
 		parts = []
 		if added:
@@ -122,11 +148,15 @@ def build_change_summary(changed_subjects: list, change_details: dict) -> str:
 			parts.append(f"{len(full_events)} now full")
 		summary_text = ", ".join(parts) if parts else "changed"
 		lines.append(f"{subject} ({new_total} classes): {summary_text}")
-		# List specific added/removed classes
+		# List specific added/removed classes, each named by its course title
 		for label in added:
-			lines.append(f"  + {label}")
+			added_line = f"  + {label} {format_display_title(label_titles[label])}"
+			lines.append(added_line)
 		for label in removed:
-			lines.append(f"  - {label}")
+			# Removed classes take their title from the old cached snapshot,
+			# which is still on disk when the diff runs.
+			removed_line = f"  - {label} {format_display_title(label_titles[label])}"
+			lines.append(removed_line)
 		# Show what changed for each modified class
 		field_changes = details["field_changes"]
 		for fc in field_changes:
@@ -141,12 +171,17 @@ def build_change_summary(changed_subjects: list, change_details: dict) -> str:
 				)
 				field_descriptions.append(description)
 			fields_str = ", ".join(field_descriptions)
-			lines.append(f"  ~ {fc['label']}: {fields_str}")
+			# The displayed title is the current (new row) title, so the line
+			# names the class as it stands now even when Title itself changed;
+			# the old title still shows inside the field description.
+			modified_title = format_display_title(label_titles[fc["label"]])
+			modified_line = f"  ~ {fc['label']} {modified_title}: {fields_str}"
+			lines.append(modified_line)
 		# Show full-section events from the memory path. A capacity bump over a
 		# previously remembered full capacity is annotated for the operator.
 		for event in full_events:
 			full_line = (
-				f"  * {event['label']} {event['title']}  "
+				f"  * {event['label']} {format_display_title(event['title'])}  "
 				f"FULL {event['enrolled']}/{event['capacity']}"
 			)
 			if event["prev_capacity"] is not None:

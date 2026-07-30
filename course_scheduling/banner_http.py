@@ -11,11 +11,14 @@ HTML to disk. Saved-page parsing lives in course_scheduling.banner_parser.
 import os
 import time
 import random
+import logging
 
 # PIP3 modules
 import requests
 
 BASE_URL = "https://banner.roosevelt.edu/ssbprod/bwskzenr.P_CourseFinder"
+RETRYABLE_STATUS_CODES = frozenset((408, 429, 500, 502, 503, 504))
+RETRY_DELAYS = (5, 15)
 
 
 #============================================
@@ -132,13 +135,79 @@ def _build_session() -> requests.Session:
 
 #============================================
 
+def _fetch_subject_response(term: str, subject: str) -> requests.Response:
+	"""
+	Fetch one subject with a fresh HTTP session.
+
+	Args:
+		term: Term code, for example 202620.
+		subject: Single subject code, for example "BIOL".
+
+	Returns:
+		Response from posting the Course Finder form.
+	"""
+	session = _build_session()
+	get_search_page(session, term)
+	payload = build_post_payload(term, [subject])
+	response = post_results(session, term, payload)
+	return response
+
+
+#============================================
+
+def _should_retry_exception(exc: requests.RequestException) -> bool:
+	"""
+	Return whether a requests exception represents a transient failure.
+
+	Args:
+		exc: Exception raised during the Course Finder GET or POST.
+
+	Returns:
+		True for connection failures, timeouts, and retryable HTTP statuses.
+	"""
+	if isinstance(exc, (requests.ConnectionError, requests.Timeout)):
+		return True
+	if not isinstance(exc, requests.HTTPError):
+		return False
+	if exc.response is None:
+		return False
+	retryable = exc.response.status_code in RETRYABLE_STATUS_CODES
+	return retryable
+
+
+#============================================
+
+def _wait_before_retry(subject: str, attempt_number: int, delay: int, reason: str) -> None:
+	"""
+	Log a transient failure and wait before opening a fresh session.
+
+	Args:
+		subject: Subject code being downloaded.
+		attempt_number: Failed attempt number, starting at one.
+		delay: Backoff delay in seconds.
+		reason: Short failure description for the log.
+	"""
+	logging.warning(
+		"Course server request for %s failed on attempt %d (%s); retrying in %d seconds",
+		subject,
+		attempt_number,
+		reason,
+		delay,
+	)
+	time.sleep(delay)
+
+
+#============================================
+
 def download_subject(term: str, subject: str, output_file: str) -> None:
 	"""
 	Download the Course Finder results page for one subject and term.
 
 	Fetches the search page (to establish the session), posts the FIND COURSES
-	form for the single subject, and writes the results HTML to output_file. On
-	a server error response, writes the error body to error_500.html and raises.
+	form for the single subject, and writes the results HTML to output_file.
+	Transient network and server failures are retried with a fresh session and
+	bounded backoff. On a final server error response, writes the error body to
+	error_500.html and raises.
 
 	Args:
 		term: Term code, for example 202620.
@@ -147,21 +216,44 @@ def download_subject(term: str, subject: str, output_file: str) -> None:
 
 	Raises:
 		RuntimeError: If the server responds with status code 400 or higher.
+		requests.RequestException: If a network failure remains after retries.
 	"""
-	session = _build_session()
-	# Fetch the search page first so the session carries the needed cookies.
-	get_search_page(session, term)
+	for attempt_index in range(len(RETRY_DELAYS) + 1):
+		try:
+			response = _fetch_subject_response(term, subject)
+		except requests.RequestException as exc:
+			if attempt_index >= len(RETRY_DELAYS) or not _should_retry_exception(exc):
+				logging.error(
+					"Course server request for %s failed: %s",
+					subject,
+					exc,
+				)
+				raise
+			delay = RETRY_DELAYS[attempt_index]
+			_wait_before_retry(subject, attempt_index + 1, delay, exc.__class__.__name__)
+			continue
 
-	payload = build_post_payload(term, [subject])
-	response = post_results(session, term, payload)
-	if response.status_code >= 400:
-		error_path = os.path.join(os.getcwd(), "error_500.html")
-		write_error_html(error_path, response.text)
-		raise RuntimeError(
-			f"Server responded with {response.status_code}. Saved {error_path}"
-		)
+		if response.status_code in RETRYABLE_STATUS_CODES and attempt_index < len(RETRY_DELAYS):
+			delay = RETRY_DELAYS[attempt_index]
+			reason = f"HTTP {response.status_code}"
+			_wait_before_retry(subject, attempt_index + 1, delay, reason)
+			continue
 
-	with open(output_file, "w", encoding="utf-8") as handle:
-		handle.write(response.text)
+		if response.status_code >= 400:
+			error_path = os.path.join(os.getcwd(), "error_500.html")
+			write_error_html(error_path, response.text)
+			logging.error(
+				"Course server request for %s failed with HTTP %d; saved response to %s",
+				subject,
+				response.status_code,
+				error_path,
+			)
+			error_message = f"Course server request for {subject} responded with "
+			error_message += f"{response.status_code}. Saved {error_path}"
+			raise RuntimeError(error_message)
 
-	print(f"Wrote results HTML to {output_file}")
+		with open(output_file, "w", encoding="utf-8") as handle:
+			handle.write(response.text)
+
+		print(f"Wrote results HTML to {output_file}")
+		return

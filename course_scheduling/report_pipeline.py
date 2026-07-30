@@ -21,6 +21,7 @@ import course_scheduling.email_report
 import course_scheduling.email_sender
 import course_scheduling.change_detect
 import course_scheduling.change_summary
+import course_scheduling.report_logging
 import course_scheduling.workbook_builder
 import course_scheduling.full_course_memory
 
@@ -28,25 +29,6 @@ import course_scheduling.full_course_memory
 # the repo root so course_scheduling/ stays code-only.
 PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(PACKAGE_DIR)
-
-
-#============================================
-
-def setup_logging() -> None:
-	"""
-	Configure logging to both stdout and a log file under the repo-root logs dir.
-	"""
-	log_dir = os.path.join(REPO_ROOT, "logs")
-	os.makedirs(log_dir, exist_ok=True)
-	log_file = os.path.join(log_dir, "email_schedule_report.log")
-	logging.basicConfig(
-		level=logging.INFO,
-		format="%(asctime)s %(levelname)s %(message)s",
-		handlers=[
-			logging.StreamHandler(),
-			logging.FileHandler(log_file, mode="a"),
-		],
-	)
 
 
 #============================================
@@ -59,7 +41,7 @@ def prime_baseline(term_code: str, subjects: list) -> None:
 		term_code: Banner term code.
 		subjects: Subject codes to fetch and cache.
 	"""
-	setup_logging()
+	course_scheduling.report_logging.setup_logging()
 	logging.info("=== Course Schedule Baseline Prime ===")
 	memory = course_scheduling.full_course_memory.load_memory(
 		course_scheduling.csv_cache.FULL_MEMORY_PATH
@@ -88,7 +70,7 @@ def run_report(term_code: str, subjects: list, dry_run: bool) -> None:
 		dry_run: When True, detect changes and compose the email but neither
 			generate the workbook nor send the email; memory stays untouched.
 	"""
-	setup_logging()
+	course_scheduling.report_logging.setup_logging()
 	logging.info("=== Course Schedule Report ===")
 	logging.info("Term code: %s, Dry run: %s", term_code, dry_run)
 
