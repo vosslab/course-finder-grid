@@ -107,8 +107,9 @@ state (cache snapshots, logs, generated workbooks) lives at the repo root in
   `Mail.app`; sends a report email with xlsx attachment to hardcoded recipients.
 - [course_scheduling/report_pipeline.py](../course_scheduling/report_pipeline.py): end-to-end
   orchestration for one report run (load memory, detect changes, compose email, generate workbook, send,
-  persist cache). A partial report omits unavailable subjects from the workbook and preserves their
-  prior cache and full-section memory.
+  persist cache). Only meaningful course changes trigger an email. A triggered partial report omits
+  unavailable subjects from the workbook and preserves their prior cache and full-section memory;
+  an outage without a course change remains log-only.
 - [course_scheduling/report_scheduler.py](../course_scheduling/report_scheduler.py): sleep-loop
   scheduler; computes next run slot (Mon-Thu 8:03am, Fri 8:03am + 6:07pm), sleeps, then invokes
   a caller-supplied callback.

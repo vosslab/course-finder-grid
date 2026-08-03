@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-08-03
+
+### Behavior or Interface Changes
+
+- A report run with zero meaningful course changes now sends no email, even
+  when one or more subjects are unavailable after a server error. The outage
+  remains in the report log. If another subject has a real course change, the
+  partial email still identifies the unavailable subject and omits it from the
+  attachment.
+
+### Fixes and Maintenance
+
+- Updated the email-report usage, troubleshooting, architecture, and partial
+  email wording test to reflect the course-change-only send gate.
+
+### Developer Tests and Notes
+
+- A one-time offline gate probe made workbook generation and email sending fail
+  if called, then confirmed that an unavailable subject with zero meaningful
+  course changes reached neither operation. The probe was removed afterward.
+- `source source_me.sh && python3 -m pytest tests/` passes all 899 tests.
+
 ## 2026-07-29
 
 ### Additions and New Features

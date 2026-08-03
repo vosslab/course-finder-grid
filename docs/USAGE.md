@@ -96,13 +96,15 @@ warning, and enters the scheduler loop. The launcher confirms that the detached
 tmux session survives startup before reporting success. The older `--prime` and
 `--no-prime` spellings remain accepted for compatibility.
 
-An HTTP 5xx response for one subject does not suppress the scheduled report
-for subjects the Roosevelt server returned successfully. Retryable statuses
-exhaust their bounded backoff first. The email names the unavailable subject,
-the attachment omits it, and its prior cache and full-section memory stay
-untouched. The report uses the same successful downloads for change detection
-and the attachment. Baseline refresh remains all-or-nothing so it never
-persists a partial starting snapshot.
+An HTTP 5xx response for one subject does not suppress real course changes from
+subjects the Roosevelt server returned successfully. Retryable statuses exhaust
+their bounded backoff first. A run with zero meaningful course changes sends no
+email; the unavailable subject remains visible in the report log. When another
+subject has a meaningful change, the email names the unavailable subject, the
+attachment omits it, and its prior cache and full-section memory stay untouched.
+The report uses the same successful downloads for change detection and the
+attachment. Baseline refresh remains all-or-nothing so it never persists a
+partial starting snapshot.
 
 ## Advanced tools
 

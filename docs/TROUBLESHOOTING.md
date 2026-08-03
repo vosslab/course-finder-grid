@@ -30,9 +30,11 @@ than course-result HTML.
 Fix: The downloader retries transient network failures and HTTP 408, 429, 500,
 502, 503, and 504 responses with a fresh session and bounded backoff. After an
 HTTP 5xx response, and after bounded retries when the status is retryable, the
-email report continues with the subjects that succeeded, sends an attachment
-built from those same downloads, and states that the failed subject's data is
-unavailable. Its prior cache and full-section memory remain untouched.
+report continues with the subjects that succeeded. A run with zero meaningful
+course changes sends no email; the failure remains in the report log. When a
+successful subject has a meaningful change, the email and attachment use those
+successful downloads and state that the failed subject's data is unavailable.
+Its prior cache and full-section memory remain untouched.
 
 A baseline refresh remains all-or-nothing: an exhausted response stops the
 refresh without replacing the existing baseline, but the failure does not stop

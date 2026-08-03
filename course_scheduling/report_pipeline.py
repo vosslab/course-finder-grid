@@ -88,14 +88,16 @@ def run_report(term_code: str, subjects: list, dry_run: bool) -> None:
 	)
 	changed_subjects, change_details, all_changed_subjects, unavailable_subjects = check_result
 
-	if not changed_subjects and not unavailable_subjects:
+	# Server outages stay in the log but do not make a report email-worthy.
+	# If another subject changed, the email below still discloses the outage.
+	if not changed_subjects:
 		if all_changed_subjects:
 			course_scheduling.csv_cache.update_csv_cache(term_code, tmp_dir, all_changed_subjects)
 		# Persist first-run seeding and the term key even with no email to send.
 		# A dry run leaves the memory file untouched.
 		if not dry_run:
 			course_scheduling.full_course_memory.save_memory(course_scheduling.csv_cache.FULL_MEMORY_PATH, memory)
-		logging.info("No meaningful changes detected.")
+		logging.info("No meaningful course changes detected; no email sent.")
 		shutil.rmtree(tmp_dir, ignore_errors=True)
 		return
 
