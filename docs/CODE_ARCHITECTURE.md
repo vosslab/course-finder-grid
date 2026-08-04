@@ -100,7 +100,7 @@ state (cache snapshots, logs, generated workbooks) lives at the repo root in
   per-term memory of which CRNs have been reported full; prevents duplicate "now full" emails when
   capacity stays the same.
 - [course_scheduling/change_summary.py](../course_scheduling/change_summary.py): human-readable text
-  builders for schedule diffs (when/where changes, enrollment changes).
+  builders for reportable field and schedule changes plus full-section events.
 - [course_scheduling/email_report.py](../course_scheduling/email_report.py): composes subject line and
   body for the change report; no transport logic.
 - [course_scheduling/email_sender.py](../course_scheduling/email_sender.py): AppleScript transport via

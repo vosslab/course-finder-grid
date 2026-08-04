@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-08-04
+
+### Behavior or Interface Changes
+
+- Course-change emails now keep their `+`, `-`, `~`, and `*` markers while
+  describing each event in readable sentences. Added and removed sections say
+  what happened, lab/lecture corrections become one semantic designation, and
+  schedule or field changes use "changed from" wording instead of arrows.
+- Parser audit fields and derived values no longer qualify as email changes by
+  themselves. They remain in raw CSV snapshots for diagnosis without exposing
+  token flags, reason codes, or boolean transitions to recipients.
+
+### Fixes and Maintenance
+
+- Documented and ignored `error_500.html` as a program-generated final HTTP
+  response. Its continued creation is expected while BCHM returns the current
+  server error.
+
+### Developer Tests and Notes
+
+- Checked the six BIOL updates against the rendered summary as a one-time
+  implementation proof. The permanent suite keeps focused lab, lecture, and
+  audit-only behavior checks instead of an exact multi-course output gate.
+
 ## 2026-08-03
 
 ### Behavior or Interface Changes

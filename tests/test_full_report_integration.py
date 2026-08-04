@@ -84,6 +84,19 @@ def test_same_cap_refill_is_quiet() -> None:
 	assert has_real_changes is False
 
 
+def test_parser_audit_field_change_is_quiet() -> None:
+	"""A parser-reason change alone does not become an email course update."""
+	memory: dict = {TERM: {}}
+	old_row = make_row(CRN_A, enrolled=20, capacity=30)
+	old_row["Lab_Reason"] = "lab_attribute"
+	new_row = make_row(CRN_A, enrolled=20, capacity=30)
+	new_row["Lab_Reason"] = "lab_token"
+	_details, has_real_changes = course_scheduling.change_detect.evaluate_subject_changes(
+		[new_row], [old_row], term_code=TERM, memory=memory, first_run=False
+	)
+	assert has_real_changes is False
+
+
 #============================================
 # waitlist-only toggle is quiet, genuine new full still reports
 

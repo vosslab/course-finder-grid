@@ -10,6 +10,8 @@ OTHER_REPOS/
 cache/
 logs/
 output/
+# Final HTTP error response saved by the course downloader for diagnosis
+error_500.html
 # Local reference workbooks (golden/manual comparison artifacts), not tracked
 classic/
 # Legacy in-package generated artifacts (re-seeded at the new repo-root dirs)

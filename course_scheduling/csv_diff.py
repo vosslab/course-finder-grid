@@ -6,6 +6,22 @@ import logging
 import os
 
 
+# Only source fields that communicate a course change belong in the email.
+# The raw snapshot also contains parser audit fields and derived values; those
+# remain available in the CSV for debugging but do not represent new course
+# information for the recipient.
+REPORTABLE_CHANGE_COLUMNS = {
+	"CRN",
+	"Title",
+	"Instructor",
+	"When_Where",
+	"Attributes",
+	"Cross_Listed_With",
+	"Campus",
+	"Level",
+}
+
+
 #============================================
 def load_csv_rows(csv_path: str) -> list:
 	"""
@@ -93,11 +109,9 @@ def diff_rows(new_rows: list, old_rows: list) -> dict:
 	# current title.
 	for label, row in new_by_label.items():
 		label_titles[label] = row.get("Title", "")
-	# Columns that change with every enrollment update (noise). A waitlist
-	# forming or draining on an otherwise unchanged section stays quiet; full
-	# events come from the memory path, not this byte-level diff.
-	enrollment_noise_columns = {"Enrolled", "Enrollment_Ratio", "Waitlisted"}
-	# Check for modified rows (same label but different content)
+	# Check for modified rows (same label but different content). Enrollment
+	# values, parser audit flags, and other derived snapshot columns remain
+	# available for diagnostics but do not become operator-facing changes.
 	modified = []
 	field_changes = []
 	for label in sorted(old_labels & new_labels):
@@ -111,8 +125,8 @@ def diff_rows(new_rows: list, old_rows: list) -> dict:
 		for col in sorted(all_keys):
 			if old_row.get(col, "") != new_row.get(col, ""):
 				changed_cols.append(col)
-		# Skip rows where only enrollment noise columns changed
-		real_changes = [c for c in changed_cols if c not in enrollment_noise_columns]
+		# Keep only source fields that communicate a course change to a person.
+		real_changes = [c for c in changed_cols if c in REPORTABLE_CHANGE_COLUMNS]
 		if not real_changes:
 			continue
 		modified.append(label)

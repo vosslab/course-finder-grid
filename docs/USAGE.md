@@ -204,7 +204,7 @@ refilled.
   of "full" emails on the first run for a new term.
 - Capacity-bump rule: if a section refills at the same capacity it is treated as
   noise. If capacity increased since last seen full, the email reports it again with
-  a `(was full at PREV)` note.
+  a sentence stating the capacity at which it was previously reported full.
 - Waitlist toggles: changes to the `Waitlisted` enrollment column are treated as
   noise and do not generate "modified" email lines.
 - Reset: delete `full_course_memory.yaml` to reset memory for all terms, or delete

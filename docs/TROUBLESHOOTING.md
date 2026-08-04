@@ -42,7 +42,9 @@ the daemon. A scheduled report child or scheduler failure also does not
 permanently stop the supervised loop. The terminal failure and traceback are
 retained in `logs/email_schedule_report.log`. A final HTTP error response is
 also saved to `error_500.html`; connection and timeout failures have no
-response body to save.
+response body to save. While BCHM continues to return the reported server
+error, creation or replacement of `error_500.html` is expected program output,
+not a hand-authored input file.
 
 ## Grid is missing or empty
 

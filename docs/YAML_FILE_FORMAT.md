@@ -13,8 +13,8 @@ Written and read by `course_scheduling/full_course_memory.py`. The path is defin
 
 Prevents false-positive "section now full" emails. When a section that was already
 reported full loses a seat and refills at the same capacity, the memory suppresses
-the redundant notification. A genuine capacity increase (for example 24 -> 36) fires
-a new event with a `(was full at PREV)` note in the email body.
+the redundant notification. A genuine capacity increase (for example, from 24 to
+36) fires a new event whose email sentence states the previous full capacity.
 
 ## Schema
 

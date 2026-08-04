@@ -47,8 +47,8 @@ def evaluate_subject_changes(new_rows: list, old_rows: list, term_code: str,
 		Tuple of (details dict, has_real_changes bool). The details dict carries
 		added/removed/modified/field_changes plus a "full_events" list.
 	"""
-	# Byte-level enrollment noise is already dropped inside diff_rows; here we
-	# layer the snapshot-vs-memory full detection on top of that diff.
+	# Non-reportable snapshot differences are already dropped inside diff_rows;
+	# here we layer snapshot-vs-memory full detection on top of that diff.
 	details = course_scheduling.csv_diff.diff_rows(new_rows, old_rows)
 	if first_run:
 		# Seed the term baseline silently so the backlog does not fire events.
@@ -58,7 +58,7 @@ def evaluate_subject_changes(new_rows: list, old_rows: list, term_code: str,
 		full_events = course_scheduling.full_course_memory.detect_full_events(new_rows, term_code, memory)
 	details["full_events"] = full_events
 	# A subject is meaningful when sections were added, removed, genuinely
-	# modified, or newly went full; pure enrollment churn stays quiet.
+	# modified, or newly went full; snapshot-only changes stay quiet.
 	has_real_changes = any([
 		details["added"],
 		details["removed"],
@@ -184,7 +184,9 @@ def check_for_changes(term_code: str, subjects: list, tmp_dir: str,
 					len(details["full_events"]),
 				)
 			else:
-				logging.info("  byte-level change only; suppressing enrollment noise in email")
+				logging.info(
+					"  byte-level change only; suppressing non-reportable snapshot differences"
+				)
 		else:
 			logging.info("No change: %s", subject)
 	# Surface the degraded-key state once when no real CRN was found at all.
