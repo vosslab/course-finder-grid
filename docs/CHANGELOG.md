@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-09-02
+
+### Behavior or Interface Changes
+
+- Each real `run_email_tmux.sh` launch now sends one startup test email to
+  `nvoss@roosevelt.edu` from inside the daemon's tmux process context. This
+  verifies both the AppleScript transport and the macOS identity that scheduled
+  reports actually use.
+- A failed startup test leaves the daemon stopped instead of starting a process
+  that cannot deliver email. The test can also be run independently with
+  the minimal root-level `test_email_permission.py` script; it does not fetch
+  courses or change caches.
+- The launcher now creates a dedicated `course_email_daemon` tmux server and
+  refuses to create a duplicate while the legacy default-socket session exists.
+  Launching from Terminal.app provides a prompt-capable context, while the
+  daemon-context email remains the authoritative privacy-identity check.
+- The launcher waits for an explicit permission-test result from the supervisor
+  instead of treating tmux process survival after a fixed delay as readiness.
+
+### Decisions and Failures
+
+- A foreground test email succeeded, but repeating the test inside the live
+  daemon session failed with AppleScript error `-1743`. The macOS TCC log
+  attributed the denied request to `/usr/libexec/sshd-keygen-wrapper` and
+  explicitly disallowed prompting in that background context, proving that a
+  foreground-only permission check was not an adequate daemon acceptance test.
+
+### Developer Tests and Notes
+
+- Added an offline recipient-isolation test proving the startup message targets
+  only the daemon operator and not the normal two-person report list.
+- Six independent review passes found one startup-readiness defect: tmux
+  liveness was being mistaken for completed Mail authorization. Replaced the
+  fixed delay with an explicit supervisor status handshake; the 903-test fast
+  suite, shell syntax checks, and whitespace checks pass afterward.
+
 ## 2026-08-04
 
 ### Behavior or Interface Changes

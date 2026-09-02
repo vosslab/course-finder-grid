@@ -50,10 +50,45 @@ Start the recurring schedule-change email daemon in a tmux session:
 ./run_email_tmux.sh
 ```
 
+Each new daemon launch first sends a plain startup test email to
+`nvoss@roosevelt.edu` from inside the daemon's tmux process context. If a macOS
+update reset Mail.app Automation access, click **Allow** in the system prompt.
+The scheduler starts only after the test message sends successfully; a denial
+or Mail error leaves the daemon stopped so it cannot enter a failing restart
+cycle.
+
+Run `./run_email_tmux.sh` from a prompt-capable Terminal.app session, not SSH or
+a background agent. The dedicated `course_email_daemon` tmux server isolates
+the daemon from unrelated tmux-server ancestry; the startup email remains the
+authoritative check of the resulting macOS privacy identity.
+
+Run the same Mail transport from the current terminal without starting the
+daemon:
+
+```bash
+source source_me.sh && python3 test_email_permission.py
+```
+
+This manual command verifies the current terminal context. The automatic launch
+test is the authoritative daemon check because macOS Automation permission also
+depends on process ancestry. If macOS no longer presents a prompt after access
+was denied, open **System Settings > Privacy & Security > Automation**, allow
+the listed process to control Mail, then launch again from Terminal.app.
+No prompt plus a delivered startup email means Automation access was already
+approved for that exact daemon context.
+
+If the older default-socket daemon is still running, stop it once before using
+the dedicated server:
+
+```bash
+tmux kill-session -t course_email
+./run_email_tmux.sh
+```
+
 Attach to the running session:
 
 ```bash
-tmux attach -t course_email
+tmux -L course_email_daemon attach -t course_email
 ```
 
 The daemon sends reports Mon-Thu at 8:03am and Fri at 8:03am and 6:07pm.
@@ -66,8 +101,8 @@ permanent Python Dock icon.
 Runtime activity and errors are written to
 `logs/email_schedule_report.log`. This includes retry attempts, exhausted
 request failures, uncaught baseline-refresh/report tracebacks, scheduled-child exit
-statuses, and supervisor restarts. The log rotates at 5 MB and keeps three
-numbered backups.
+statuses, startup test-email results, and supervisor restarts. The log rotates
+at 5 MB and keeps three numbered backups.
 
 ### Refreshing the baseline
 
@@ -131,6 +166,19 @@ Flags:
 - `--loop`: run on the recurring schedule instead of once.
 - `--refresh-baseline`: fetch and persist a no-email starting snapshot; cannot
   be combined with `--loop`. `--prime` is retained as an alias.
+
+### Mail.app startup test
+
+Send one plain email to `nvoss@roosevelt.edu` through the same AppleScript and
+Mail.app transport used by scheduled reports:
+
+```bash
+source source_me.sh && python3 test_email_permission.py
+```
+
+Use this foreground command to request or verify Automation permission for the
+current terminal without downloading course data, changing caches, or starting
+the daemon. A successful daemon launch remains the exact-context check.
 
 ### tools/build_grid_from_csv.py
 

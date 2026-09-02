@@ -10,6 +10,7 @@ import applescript
 
 # Recipients for schedule change alerts
 RECIPIENTS = ("rseiser@roosevelt.edu", "nvoss@roosevelt.edu")
+STARTUP_TEST_RECIPIENT = "nvoss@roosevelt.edu"
 
 
 #============================================
@@ -51,6 +52,31 @@ def compose_email_applescript(recipients: tuple, subject: str, body: str, attach
 
 
 #============================================
+def compose_startup_test_applescript() -> str:
+	"""
+	Build the plain test message used to verify Mail.app automation access.
+
+	Returns:
+		AppleScript source for one test email to the daemon operator.
+	"""
+	script_text = 'tell application "Mail"\n'
+	script_text += '\tactivate\n'
+	script_text += '\tdelay 3\n'
+	script_text += '\tset theMessage to make new outgoing message with properties '
+	script_text += '{subject:"Course finder daemon startup test", '
+	script_text += 'content:"Mail.app automation is available to the course finder daemon.", '
+	script_text += 'visible:true}\n'
+	script_text += '\ttell theMessage\n'
+	script_text += '\t\tmake new to recipient with properties '
+	script_text += f'{{address:"{STARTUP_TEST_RECIPIENT}"}}\n'
+	script_text += '\t\tdelay 2\n'
+	script_text += '\t\tsend\n'
+	script_text += '\tend tell\n'
+	script_text += 'end tell\n'
+	return script_text
+
+
+#============================================
 def _reopen_and_retry(scpt: applescript.AppleScript) -> None:
 	"""
 	Reopen Mail.app and retry the AppleScript send once.
@@ -68,6 +94,29 @@ def _reopen_and_retry(scpt: applescript.AppleScript) -> None:
 	time.sleep(10)
 	# Second attempt; if this fails, the exception propagates so cache stays untouched
 	scpt.run()
+
+
+#============================================
+def send_startup_test_email() -> None:
+	"""
+	Send one startup test email to verify Mail.app automation access.
+
+	A failure propagates to the launcher so the daemon does not start without a
+	working Mail.app transport.
+	"""
+	script_text = compose_startup_test_applescript()
+	logging.info("Sending daemon startup test email to %s", STARTUP_TEST_RECIPIENT)
+	subprocess.run(["open", "-a", "Mail"], check=False)
+	time.sleep(3)
+	scpt = applescript.AppleScript(script_text)
+	# Record authorization denial or Mail control failure before failing closed
+	# (ASVS 16.3.2 and 16.3.4).
+	try:
+		scpt.run()
+	except applescript.ScriptError as exc:
+		logging.error("Daemon startup test email failed: %s", exc)
+		raise
+	logging.info("Daemon startup test email sent successfully")
 
 
 #============================================

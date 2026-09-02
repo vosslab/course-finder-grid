@@ -8,7 +8,8 @@ add new work.
 ```text
 course-finder-grid/
 +- build_grids_from_html.py   # root entry point: HTML -> merged xlsx workbook
-+- run_email_tmux.sh          # start the email daemon in a tmux session
++- run_email_tmux.sh          # start the daemon on its dedicated tmux server
++- test_email_permission.py   # foreground Mail.app permission + delivery check
 +- source_me.sh               # bootstrap: sets PYTHONPATH, env vars
 +- AGENTS.md                  # agent instructions and repo guardrails
 +- CLAUDE.md                  # Claude Code project config (loads AGENTS.md)
@@ -100,6 +101,7 @@ tests/
 +- test_full_course_memory.py       # full-section memory unit tests
 +- test_banner_http.py              # transient Course Finder recovery tests
 +- test_email_report.py             # partial-report email wording
++- test_email_sender.py             # startup test-email recipient isolation
 +- test_change_summary_titles.py    # user-visible course-title rendering
 +- test_course_title.py             # Banner title capitalization behavior
 +- test_report_logging.py           # traceback persistence + log rotation tests

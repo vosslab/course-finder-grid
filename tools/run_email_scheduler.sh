@@ -6,18 +6,19 @@
 RESTART_DELAY=60
 REFRESH_BASELINE_ON=1
 
-if [ "$#" -eq 1 ]; then
+if [ "$#" -eq 2 ]; then
 	:
-elif [ "$#" -eq 2 ] && {
-		[ "$2" = "--skip-baseline-refresh" ] || [ "$2" = "--no-prime" ]
+elif [ "$#" -eq 3 ] && {
+		[ "$3" = "--skip-baseline-refresh" ] || [ "$3" = "--no-prime" ]
 	}; then
 	REFRESH_BASELINE_ON=0
 else
-	echo "Usage: $0 TERM_CODE [--skip-baseline-refresh]"
+	echo "Usage: $0 TERM_CODE STARTUP_STATUS_FILE [--skip-baseline-refresh]"
 	exit 1
 fi
 
 TERM_CODE="$1"
+STARTUP_STATUS_FILE="$2"
 
 # Treat an interactive interrupt or tmux termination as an intentional stop.
 trap 'exit 130' INT
@@ -31,6 +32,23 @@ log_supervisor_event() {
 		echo "$TIMESTAMP WARNING $MESSAGE"
 	fi
 }
+
+write_startup_status() {
+	STATUS_VALUE="$1"
+	TEMP_STATUS_FILE="${STARTUP_STATUS_FILE}.tmp"
+	printf '%s\n' "$STATUS_VALUE" > "$TEMP_STATUS_FILE"
+	mv "$TEMP_STATUS_FILE" "$STARTUP_STATUS_FILE"
+}
+
+# Run the Mail transport under the daemon's actual tmux process ancestry.
+# Stop before scheduling if that context cannot control Mail (ASVS 16.5.3).
+if ! python3 test_email_permission.py; then
+	MESSAGE="Daemon-context Mail.app permission test failed; scheduler not started"
+	log_supervisor_event "$MESSAGE"
+	write_startup_status "failed"
+	exit 1
+fi
+write_startup_status "ready"
 
 if [ "$REFRESH_BASELINE_ON" -eq 1 ]; then
 	python3 tools/email_schedule_report.py --term "$TERM_CODE" --refresh-baseline

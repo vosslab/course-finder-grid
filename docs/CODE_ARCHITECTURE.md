@@ -21,6 +21,7 @@ state (cache snapshots, logs, generated workbooks) lives at the repo root in
 | Script | Purpose |
 | --- | --- |
 | [build_grids_from_html.py](../build_grids_from_html.py) | Root launcher: download HTML, build preset grid matrix, write merged workbook to `output/` |
+| `test_email_permission.py` | Send the standalone or daemon-context Mail.app permission test |
 | [tools/build_grid_from_csv.py](../tools/build_grid_from_csv.py) | One-off grid from a CSV export; accepts full filter set |
 | [tools/email_schedule_report.py](../tools/email_schedule_report.py) | One-shot or looping change-detection report; sends email via Mail.app |
 | [run_email_tmux.sh](../run_email_tmux.sh) | Starts the email daemon in a named tmux session |
@@ -178,8 +179,9 @@ tools/build_grid_from_csv.py
 ```text
 run_email_tmux.sh
   |
-  +--> detached tmux: tools/run_email_scheduler.sh
+  +--> dedicated detached tmux server: tools/run_email_scheduler.sh
          |
+         +--> test_email_permission.py  # exact-context Mail permission gate + readiness status
          +--> short-lived baseline refresh # optional; failure does not gate loop
          +--> scheduler loop               # restart on unexpected exit
          |

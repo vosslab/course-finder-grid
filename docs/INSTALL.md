@@ -9,6 +9,7 @@ required. After cloning, install system and Python dependencies, then run any en
 - macOS (py-applescript uses Mail.app; email-send path is macOS-only)
 - Python 3.12 via Homebrew
 - tmux (required for the `run_email_tmux.sh` daemon workflow)
+- A prompt-capable Terminal.app session with permission to control Mail.app
 
 ## Install steps
 
@@ -44,6 +45,17 @@ source source_me.sh && python3 build_grids_from_html.py --help
 ```
 
 Expected output: usage message listing `-t / --term` and `--subject` flags.
+
+To verify the daemon transport, launch it from Terminal.app. This sends one
+test email to the daemon operator and starts scheduling only after Mail accepts
+the exact-context AppleScript request:
+
+```bash
+./run_email_tmux.sh
+```
+
+See [USAGE.md](USAGE.md#email-report-daemon-tmux) for Automation permission,
+dedicated tmux server, and legacy-session migration details.
 
 ## Known gaps
 
