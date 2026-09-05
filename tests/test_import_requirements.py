@@ -28,7 +28,6 @@ LOCAL_IMPORT_WHITELIST = {
 	"local_llm_wrapper",
 }
 IMPORT_REQUIREMENT_ALIASES = {
-	"applescript": "py-applescript",
 	"bio": "biopython",
 	"bs4": "beautifulsoup4",
 	"cairo": "pycairo",

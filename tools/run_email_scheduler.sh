@@ -13,7 +13,7 @@ elif [ "$#" -eq 3 ] && {
 	}; then
 	REFRESH_BASELINE_ON=0
 else
-	echo "Usage: $0 TERM_CODE STARTUP_STATUS_FILE [--skip-baseline-refresh]"
+	echo "Usage: $0 TERM_CODE STARTUP_STATUS_FILE [--skip-baseline-refresh|--no-prime]"
 	exit 1
 fi
 
@@ -40,11 +40,20 @@ write_startup_status() {
 	mv "$TEMP_STATUS_FILE" "$STARTUP_STATUS_FILE"
 }
 
-# Run the Mail transport under the daemon's actual tmux process ancestry.
-# Stop before scheduling if that context cannot control Mail (ASVS 16.5.3).
-if ! python3 test_email_permission.py; then
-	MESSAGE="Daemon-context Mail.app permission test failed; scheduler not started"
-	log_supervisor_event "$MESSAGE"
+test_mail_transport() {
+	FAILURE_MESSAGE="$1"
+	# Every scheduler process starts only after the shared native transport has
+	# completed a real delivery test (ASVS 16.5.3).
+	if python3 test_email_permission.py; then
+		return 0
+	fi
+	log_supervisor_event "$FAILURE_MESSAGE"
+	return 1
+}
+
+# Exercise the same stable helper identity used by scheduled reports.
+# Stop before scheduling if that identity cannot control Mail (ASVS 16.5.3).
+if ! test_mail_transport "CourseFinderMailer startup test failed; scheduler not started"; then
 	write_startup_status "failed"
 	exit 1
 fi
@@ -73,7 +82,11 @@ while true; do
 	fi
 
 	MESSAGE="Email scheduler exited with status $EXIT_CODE;"
-	MESSAGE+=" restarting in $RESTART_DELAY seconds"
+	MESSAGE+=" retesting Mail and restarting in $RESTART_DELAY seconds"
 	log_supervisor_event "$MESSAGE"
 	sleep "$RESTART_DELAY"
+	if ! test_mail_transport \
+		"CourseFinderMailer restart test failed; scheduler stopped"; then
+		exit 1
+	fi
 done

@@ -8,9 +8,15 @@ add new work.
 ```text
 course-finder-grid/
 +- build_grids_from_html.py   # root entry point: HTML -> merged xlsx workbook
-+- run_email_tmux.sh          # start the daemon on its dedicated tmux server
-+- test_email_permission.py   # foreground Mail.app permission + delivery check
-+- source_me.sh               # bootstrap: sets PYTHONPATH, env vars
++- build_course_finder_mailer.sh # build, sign, verify, install native helper
++- run_email_tmux.sh          # start the visible 'cfmail' tmux session
++- test_email_permission.py   # helper Mail.app permission + delivery check
++- course_finder_mailer/      # native Mail helper source and build metadata
+|  +- course_finder_mailer.swift # private JSON request/result and TCC check
+|  +- Info.plist                 # app identity and Automation-use explanation
+|  `- course_finder_mailer.entitlements # Mail AppleEvent Automation entitlement
++- CourseFinderMailer.app/    # generated, locally signed Mail helper (gitignored)
++- source_me.sh               # bootstrap: loads .bashrc and Python runtime flags
 +- AGENTS.md                  # agent instructions and repo guardrails
 +- CLAUDE.md                  # Claude Code project config (loads AGENTS.md)
 +- README.md                  # project purpose and quick start
@@ -70,7 +76,7 @@ course_scheduling/
 +- full_course_memory.py        # YAML-backed "now full" CRN memory per term
 +- change_summary.py            # human-readable diff text builders
 +- email_report.py              # email subject + body composition
-+- email_sender.py              # AppleScript transport via Mail.app
++- email_sender.py              # private requests to CourseFinderMailer.app
 +- report_pipeline.py           # end-to-end orchestration for one report run
 +- report_logging.py            # rotating file + terminal logging, stdlib only
 +- report_scheduler.py          # sleep-loop scheduler (Mon-Thu + Fri schedule)
@@ -101,7 +107,7 @@ tests/
 +- test_full_course_memory.py       # full-section memory unit tests
 +- test_banner_http.py              # transient Course Finder recovery tests
 +- test_email_report.py             # partial-report email wording
-+- test_email_sender.py             # startup test-email recipient isolation
++- test_email_sender.py             # reject recipients outside the mail allowlist
 +- test_change_summary_titles.py    # user-visible course-title rendering
 +- test_course_title.py             # Banner title capitalization behavior
 +- test_report_logging.py           # traceback persistence + log rotation tests
@@ -135,8 +141,18 @@ All project documentation. Files follow SCREAMING_SNAKE_CASE naming.
 docs/
 +- CHANGELOG.md               # chronological record of changes
 +- CODE_ARCHITECTURE.md       # system design, components, data flow
++- DEVELOPMENT.md             # contributor workflows and verification lanes
++- FILE_FORMATS.md            # CSV, workbook, cache, log, and mail IPC formats
 +- FILE_STRUCTURE.md          # this file: directory map
++- INSTALL.md                 # Python setup and optional macOS email setup
++- NEWS.md                    # concise current-release highlights
++- RELATED_PROJECTS.md        # comparable scheduling tools and services
++- RELEASE_HISTORY.md         # versioned release summaries
++- ROADMAP.md                 # ordered future direction
++- TODO.md                    # bounded near-term work
++- TROUBLESHOOTING.md         # symptoms, causes, and recovery steps
 +- USAGE.md                   # CLI flags, workflows, output locations
++- YAML_FILE_FORMAT.md        # full-course-memory YAML contract
 +- AUTHORS.md                 # maintainers and contributors
 +- PYTHON_STYLE.md            # Python coding conventions
 +- REPO_STYLE.md              # repo-wide organization conventions
@@ -144,6 +160,7 @@ docs/
 +- MARKDOWN_STYLE.md          # Markdown writing rules
 +- E2E_TESTS.md               # E2E test conventions
 +- CLAUDE_HOOK_USAGE_GUIDE.md # Claude Code hook behavior reference
++- screenshots/               # documentation images
 +- active_plans/              # working planning artifacts (in-flight)
 ```
 
@@ -176,6 +193,9 @@ All generated artifacts are gitignored and live outside `course_scheduling/`.
 
 | Location | Contents |
 | --- | --- |
+| `CourseFinderMailer.app/` | Locally built and signed native Mail Automation helper |
+| `build/course_finder_mailer/` | Temporary helper bundle and recoverable installation backup |
+| `build/swift_module_cache/` | Swift compiler module cache for helper builds |
 | `cache/` | Per-subject CSV snapshots; `full_course_memory.yaml` (durable full-section memory) |
 | `logs/` | Rotating `email_schedule_report.log` plus up to three numbered backups |
 | `output/` | Merged term workbook (`<term>-merged-grid.xlsx`), per-tab grid xlsx files, audit tables |
@@ -188,7 +208,11 @@ Root docs: [README.md](../README.md), [AGENTS.md](../AGENTS.md), [VERSION](../VE
 All other docs live under `docs/`. Key files for contributors:
 
 - [docs/CODE_ARCHITECTURE.md](CODE_ARCHITECTURE.md): system design and data flow.
+- [docs/DEVELOPMENT.md](DEVELOPMENT.md): contributor workflow and verification lanes.
+- [docs/FILE_FORMATS.md](FILE_FORMATS.md): input, output, runtime-state, and mail IPC formats.
 - [docs/FILE_STRUCTURE.md](FILE_STRUCTURE.md): this file.
+- [docs/INSTALL.md](INSTALL.md): environment and optional email-daemon setup.
+- [docs/TROUBLESHOOTING.md](TROUBLESHOOTING.md): symptom-based recovery guidance.
 - [docs/USAGE.md](USAGE.md): CLI flags, workflows, output locations, color scheme.
 - [docs/CHANGELOG.md](CHANGELOG.md): chronological change record.
 - [docs/PYTHON_STYLE.md](PYTHON_STYLE.md): Python coding conventions (tabs, type hints, no try/except, etc.).
@@ -200,6 +224,7 @@ All other docs live under `docs/`. Key files for contributors:
 | New library module | `course_scheduling/<module>.py` |
 | New root entry point (standalone CLI) | `<name>.py` at repo root with shebang |
 | New secondary tool | `tools/<name>.py` with shebang |
+| Native Mail helper source | `course_finder_mailer/` with matching root build-script updates |
 | Fast pytest test | `tests/test_<name>.py` |
 | E2E test | `tests/e2e/e2e_<name>.py` or `tests/e2e/e2e_<name>.sh` |
 | Documentation | `docs/<NAME>.md` (SCREAMING_SNAKE_CASE) |

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Send the Mail.app permission test email used before daemon startup."""
+"""Test CourseFinderMailer's permission to automate Mail.app."""
 
 # local repo modules
 import course_scheduling.email_sender
@@ -8,9 +8,9 @@ import course_scheduling.report_logging
 
 #============================================
 def main() -> None:
-	"""Send one test email to verify Mail.app automation permission."""
+	"""Send one test email through CourseFinderMailer's Automation grant."""
 	course_scheduling.report_logging.setup_logging()
-	print("Allow Mail.app Automation access if macOS asks.", flush=True)
+	print("Allow CourseFinderMailer to control Mail if macOS asks.", flush=True)
 	course_scheduling.email_sender.send_startup_test_email()
 	print("Test email sent to nvoss@roosevelt.edu.", flush=True)
 

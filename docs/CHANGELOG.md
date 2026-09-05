@@ -5,19 +5,66 @@
 ### Behavior or Interface Changes
 
 - Each real `run_email_tmux.sh` launch now sends one startup test email to
-  `nvoss@roosevelt.edu` from inside the daemon's tmux process context. This
-  verifies both the AppleScript transport and the macOS identity that scheduled
-  reports actually use.
+  `nvoss@roosevelt.edu` through the same `CourseFinderMailer.app` identity used
+  by scheduled reports. This verifies both delivery and the helper's Automation
+  grant before scheduling begins.
 - A failed startup test leaves the daemon stopped instead of starting a process
   that cannot deliver email. The test can also be run independently with
   the minimal root-level `test_email_permission.py` script; it does not fetch
   courses or change caches.
-- The launcher now creates a dedicated `course_email_daemon` tmux server and
-  refuses to create a duplicate while the legacy default-socket session exists.
-  Launching from Terminal.app provides a prompt-capable context, while the
-  daemon-context email remains the authoritative privacy-identity check.
+- The launcher now creates a short `cfmail` session on the normal tmux server,
+  making it visible in plain `tmux ls` output and allowing `tmux a -t cfmail`
+  as the routine attach command.
+- A briefly used isolated-server design was removed because it hid the daemon
+  from normal tmux listings. Migration guards detect both isolated server names,
+  `cfmail` and `course_email_daemon`, instead of starting a second scheduler.
+- Added a small native Swift helper with the stable bundle identifier
+  `edu.roosevelt.vosslab.CourseFinderMailer`. The locally signed app validates
+  private bounded requests, permits only the two established recipients, and
+  accepts only generated xlsx attachments directly under `output/`.
+- The helper now starts Mail through `NSWorkspace`, checks Automation with
+  `AEDeterminePermissionToAutomateTarget`, and asks macOS to prompt explicitly
+  when consent is undecided. A small foreground status window is limited to that
+  consent case; already-approved scheduled sends keep the helper UI hidden.
+- Python now launches the helper through LaunchServices instead of sending
+  AppleEvents directly. Dynamic message fields are passed as typed AppleScript
+  handler arguments, never interpolated into script source or shell commands.
+- Removed the unused `py-applescript` runtime dependency and stopped logging
+  complete AppleScript source containing message bodies.
 - The launcher waits for an explicit permission-test result from the supervisor
   instead of treating tmux process survival after a fixed delay as readiness.
+  Each launch uses a new private status directory so a stale PID-named file
+  cannot satisfy the gate.
+- Native Swift source now lives in the root-level `course_finder_mailer/`
+  application directory, with `build_course_finder_mailer.sh` as its root-level
+  build entry point. The builder retains the previous app during installation
+  and restores it if the final replacement move fails.
+
+### Fixes and Maintenance
+
+- Ran the coordinated documentation refresh: expanded the README, refreshed
+  architecture, file-layout, installation, usage, troubleshooting, file-format,
+  YAML, release, and screenshot documentation, and added development, news,
+  related-project, roadmap, and backlog guides. FAQ and cookbook pages remained
+  absent because the established usage and troubleshooting guides already own
+  those workflows.
+- Corrected native-helper paths, transient HTML locations, setup scope, request
+  examples, release status, source bootstrap wording, and the documentation map
+  after the final code-review audit.
+- Aligned the mail transport's repository-root lookup with the required
+  fixed-argument `git rev-parse --show-toplevel` discovery.
+- Replaced the template-only entry in `tools/TOOLS_README.md` with this
+  repository's actual CSV, email-report, and scheduler scripts.
+- A fresh six-pass code audit found that supervisor-created scheduler restarts
+  bypassed the launch-time delivery gate. Every replacement scheduler now
+  sends the same real test email first and stops if that check fails. The audit
+  also normalized malformed helper result files as `MailHelperError`, exposed
+  the accepted `--no-prime` alias in shell usage, and linked native source paths
+  in the architecture guide.
+- Corrected the Python result validator to accept Swift's successful
+  `{"status":"sent"}` response. Swift omits its optional `error` property when
+  it is nil; requiring that key caused Python to report failure after Mail had
+  already sent the message.
 
 ### Decisions and Failures
 
@@ -26,15 +73,29 @@
   attributed the denied request to `/usr/libexec/sshd-keygen-wrapper` and
   explicitly disallowed prompting in that background context, proving that a
   foreground-only permission check was not an adequate daemon acceptance test.
+- Granting Python direct access still did not authorize the SSH-attributed tmux
+  server. This motivated a dedicated app identity for Mail permission without
+  hiding the daemon on a separate tmux server or restarting unrelated sessions.
+- The prior scheduler-isolation plan's `py-applescript` transport non-goal was
+  superseded by the user's approval of the native helper. The scheduler remains
+  process-isolated; only the short-lived mail transport changed ownership.
 
 ### Developer Tests and Notes
 
-- Added an offline recipient-isolation test proving the startup message targets
-  only the daemon operator and not the normal two-person report list.
-- Six independent review passes found one startup-readiness defect: tmux
-  liveness was being mistaken for completed Mail authorization. Replaced the
-  fixed delay with an explicit supervisor status handshake; the 903-test fast
-  suite, shell syntax checks, and whitespace checks pass afterward.
+- Added an offline request-boundary test proving arbitrary recipients are
+  rejected. Actual Mail delivery and TCC consent remain manual macOS E2E
+  acceptance checks.
+- Added a regression test for the native helper's actual successful JSON shape.
+  A logged-in desktop run delivered the startup email before exposing the
+  post-delivery validation mismatch; the visible `cfmail` launch remains a
+  separate manual acceptance check.
+- The first six independent review passes found a startup-readiness defect:
+  tmux liveness was being mistaken for completed Mail authorization. Replaced
+  the fixed delay with an explicit supervisor status handshake.
+- A final six-pass audit found and fixed a stale-status-file bypass, helper UI
+  appearing after approval, stale dependency and launcher wording, and
+  nonconforming native source filenames. The full fast suite, native build,
+  shell syntax, plist, signature, lint, and whitespace checks pass afterward.
 
 ## 2026-08-04
 

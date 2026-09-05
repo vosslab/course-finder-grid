@@ -21,7 +21,8 @@ state (cache snapshots, logs, generated workbooks) lives at the repo root in
 | Script | Purpose |
 | --- | --- |
 | [build_grids_from_html.py](../build_grids_from_html.py) | Root launcher: download HTML, build preset grid matrix, write merged workbook to `output/` |
-| `test_email_permission.py` | Send the standalone or daemon-context Mail.app permission test |
+| [test_email_permission.py](../test_email_permission.py) | Send the CourseFinderMailer permission and delivery test |
+| [build_course_finder_mailer.sh](../build_course_finder_mailer.sh) | Build and locally sign the native Mail.app helper |
 | [tools/build_grid_from_csv.py](../tools/build_grid_from_csv.py) | One-off grid from a CSV export; accepts full filter set |
 | [tools/email_schedule_report.py](../tools/email_schedule_report.py) | One-shot or looping change-detection report; sends email via Mail.app |
 | [run_email_tmux.sh](../run_email_tmux.sh) | Starts the email daemon in a named tmux session |
@@ -38,8 +39,9 @@ state (cache snapshots, logs, generated workbooks) lives at the repo root in
 
 - [course_scheduling/banner_http.py](../course_scheduling/banner_http.py): opens a requests session,
   fetches the Banner Course Finder search page for a term, POSTs the FIND COURSES form per subject,
-  retries transient network/server failures with a fresh session and bounded backoff, and saves the
-  result HTML to `cache/`.
+  retries transient network/server failures with a fresh session and bounded backoff, and saves HTML
+  to the caller's path. Workbook builds use temporary files under `output/`; reports use a private
+  temporary directory. Both workflows delete the HTML after parsing.
 - [course_scheduling/banner_parser.py](../course_scheduling/banner_parser.py): reads a saved HTML file
   with `lxml`, iterates `courseResultsBox` divs, and produces filtered course dicts plus raw and
   lab-debug audit rows.
@@ -104,8 +106,14 @@ state (cache snapshots, logs, generated workbooks) lives at the repo root in
   builders for reportable field and schedule changes plus full-section events.
 - [course_scheduling/email_report.py](../course_scheduling/email_report.py): composes subject line and
   body for the change report; no transport logic.
-- [course_scheduling/email_sender.py](../course_scheduling/email_sender.py): AppleScript transport via
-  `Mail.app`; sends a report email with xlsx attachment to hardcoded recipients.
+- [course_scheduling/email_sender.py](../course_scheduling/email_sender.py): writes a private,
+  bounded request and launches `CourseFinderMailer.app`; sends only to the fixed report recipients.
+- The root-level
+  [course_finder_mailer/course_finder_mailer.swift](../course_finder_mailer/course_finder_mailer.swift)
+  is the native Automation identity. It validates the request, explicitly asks
+  macOS for Mail consent when it is undecided, and invokes a static parameterized
+  AppleScript handler for `Mail.app`. Already-approved scheduled sends keep the
+  helper UI hidden.
 - [course_scheduling/report_pipeline.py](../course_scheduling/report_pipeline.py): end-to-end
   orchestration for one report run (load memory, detect changes, compose email, generate workbook, send,
   persist cache). Only meaningful course changes trigger an email. A triggered partial report omits
@@ -114,6 +122,29 @@ state (cache snapshots, logs, generated workbooks) lives at the repo root in
 - [course_scheduling/report_scheduler.py](../course_scheduling/report_scheduler.py): sleep-loop
   scheduler; computes next run slot (Mon-Thu 8:03am, Fri 8:03am + 6:07pm), sleeps, then invokes
   a caller-supplied callback.
+
+### Native Mail capability
+
+- The root [build_course_finder_mailer.sh](../build_course_finder_mailer.sh)
+  builds the app bundle in `build/course_finder_mailer/`, compiles Swift with
+  `xcrun swiftc`, and applies the checked-in
+  [course_finder_mailer/course_finder_mailer.entitlements](../course_finder_mailer/course_finder_mailer.entitlements).
+  It verifies the signature and plist, then replaces the generated
+  `CourseFinderMailer.app/` bundle. It keeps the previous app as a temporary
+  backup during installation and restores it if the replacement move fails.
+- [course_scheduling/email_sender.py](../course_scheduling/email_sender.py) creates an owner-only
+  temporary `request.json`, launches the app with `/usr/bin/open -n -W`, and waits for the sibling
+  `request.json.result.json` before the temporary directory is removed.
+- The versioned JSON request carries `recipients`, `subject`, `body`, and optional `attachment_path`.
+  The result carries `status` (`sent` or `failed`) and, on failure, an error message. Swift may omit
+  its nil `error` field on success. The helper accepts only an owner-controlled
+  `course_finder_mailer_*` directory directly under the system temporary root.
+- The Swift helper accepts the fixed recipient allowlist, bounded subject/body/request sizes, and an
+  optional regular `.xlsx` attachment directly under repo-root `output/`. It returns only a bounded
+  result status/error and does not return message content.
+- Before sending, the helper calls `AEDeterminePermissionToAutomateTarget` without UI. If consent is
+  undecided, it opens a short status window, requests TCC Automation permission for `Mail.app`, then
+  sends through a static AppleScript handler with typed arguments.
 
 ### Shared utilities
 
@@ -137,7 +168,7 @@ build_grids_from_html.py
   |
   +--> workbook_builder.build_term_workbook()
          |
-         +--> banner_http                        # POST Banner form, save HTML to cache/
+         +--> banner_http                        # POST Banner form, save temporary HTML
          |
          +--> for each GridConfig:
                 |
@@ -179,9 +210,9 @@ tools/build_grid_from_csv.py
 ```text
 run_email_tmux.sh
   |
-  +--> dedicated detached tmux server: tools/run_email_scheduler.sh
+  +--> default-server tmux session: tools/run_email_scheduler.sh
          |
-         +--> test_email_permission.py  # exact-context Mail permission gate + readiness status
+         +--> test_email_permission.py  # stable-helper permission gate + readiness status
          +--> short-lived baseline refresh # optional; failure does not gate loop
          +--> scheduler loop               # restart on unexpected exit
          |
@@ -204,7 +235,11 @@ run_email_tmux.sh
                                      +--> change_summary
                                      +--> email_report
                                      +--> workbook_builder # reuse successful report downloads
-                                     +--> email_sender      # AppleScript -> Mail.app
+                                     +--> email_sender      # private request + LaunchServices
+                                     |      |
+                                     |      +--> CourseFinderMailer.app
+                                     |             |
+                                     |             +--> parameterized AppleScript -> Mail.app
                                      +--> csv_cache         # persist snapshots
                                      +--> full_course_memory
 ```
@@ -212,6 +247,9 @@ run_email_tmux.sh
 ## Testing and verification
 
 - `pytest tests/` runs the full fast suite (unit + integration); E2E tests are excluded.
+- [tests/test_email_sender.py](../tests/test_email_sender.py): verifies that the Python request
+  boundary rejects recipients outside the fixed allowlist.
+- [tests/test_markdown_links.py](../tests/test_markdown_links.py): verifies repo-local Markdown links.
 - [tests/test_full_report_integration.py](../tests/test_full_report_integration.py): integration test
   covering full-section change detection and user-visible summaries with inline rows.
 - [tests/test_email_report.py](../tests/test_email_report.py): user-visible partial-report wording.
@@ -243,3 +281,5 @@ run_email_tmux.sh
 - `course_scheduling/course_label.py` and `course_scheduling/schedule_time.py` were not fully
   read; their public API can be confirmed by reading each file.
 - Email recipients are hardcoded in `email_sender.py`; no config file or argparse flag exposes them.
+- Confirm the app build, code-signing verification, and TCC consent flow on a supported macOS host with
+  `Mail.app`; these OS-managed interactions are not exercised by the fast pytest suite.

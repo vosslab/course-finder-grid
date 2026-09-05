@@ -1,5 +1,11 @@
 # Fix the daemon Dock icon and add a baseline flush on loop start
 
+> Status: completed for scheduler isolation and baseline refresh. Its
+> `py-applescript` transport non-goal applied only to that task and was
+> superseded on 2026-09-02 by the approved `CourseFinderMailer.app` migration.
+> Current mail architecture is documented in
+> [docs/CODE_ARCHITECTURE.md](../CODE_ARCHITECTURE.md).
+
 ## Context
 
 Two related problems with the `--loop` email schedule daemon (started via

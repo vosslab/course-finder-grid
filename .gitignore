@@ -10,6 +10,7 @@ OTHER_REPOS/
 cache/
 logs/
 output/
+/CourseFinderMailer.app/
 # Final HTTP error response saved by the course downloader for diagnosis
 error_500.html
 # Local reference workbooks (golden/manual comparison artifacts), not tracked

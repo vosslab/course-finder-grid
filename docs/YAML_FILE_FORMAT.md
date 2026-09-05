@@ -1,33 +1,50 @@
 # YAML file format
 
-Specification for the runtime YAML state file used by the full-course memory subsystem.
+This repository currently uses YAML for generated full-course notification
+state. See [FILE_FORMATS.md](FILE_FORMATS.md) for the complete input and output
+format inventory.
 
-## File
+## Interface boundary
 
-`cache/full_course_memory.yaml`
+`cache/full_course_memory.yaml` is generated cache state, not user
+configuration. The report pipeline reads it before a run and rewrites it after
+a non-dry baseline or report run. You may remove the file, or one term entry,
+to reset notification memory; routine color or report settings do not belong
+in this file.
 
-Written and read by `course_scheduling/full_course_memory.py`. The path is defined in
-`course_scheduling/csv_cache.py` as `FULL_MEMORY_PATH`. The file is gitignored.
+There is currently no `config_files/subject_colors.yaml` in the repository and
+no YAML loader for that path. Subject colors come from the `SUBJECT_HUES`
+constant in [course_scheduling/schedule_colors.py](../course_scheduling/schedule_colors.py).
+A YAML file placed at `config_files/subject_colors.yaml` therefore has no
+effect in the current program. This document does not specify it as a user
+configuration interface.
 
-## Purpose
+## Full-course memory
 
-Prevents false-positive "section now full" emails. When a section that was already
-reported full loses a seat and refills at the same capacity, the memory suppresses
-the redundant notification. A genuine capacity increase (for example, from 24 to
-36) fires a new event whose email sentence states the previous full capacity.
+### Location and ownership
 
-## Schema
+The email-report path owns `cache/full_course_memory.yaml`. Its canonical path
+is `FULL_MEMORY_PATH` in [course_scheduling/csv_cache.py](../course_scheduling/csv_cache.py),
+and [course_scheduling/full_course_memory.py](../course_scheduling/full_course_memory.py)
+is its reader and writer. `cache/` is gitignored and created by the report
+workflow before production writes.
+
+### Canonical schema
 
 ```yaml
 <term_code>:
   <crn>: <capacity>
 ```
 
-- `term_code`: Banner term identifier string, for example `"202710"`.
-- `crn`: Course Reference Number string, for example `"12345"`.
-- `capacity`: Integer enrollment capacity at the time the section was last reported full.
+| Field | Required type | Meaning |
+| --- | --- | --- |
+| `term_code` | string key | Banner term identifier, such as `"202710"` |
+| `crn` | string key | Course Reference Number, such as `"11234"` |
+| `capacity` | integer value | Capacity when the section was last reported full |
 
-### Example
+Use quoted numeric-looking keys. The code looks up terms and CRNs as strings,
+so an unquoted YAML numeric key becomes an integer and will not match the
+runtime lookup.
 
 ```yaml
 "202710":
@@ -37,31 +54,56 @@ the redundant notification. A genuine capacity increase (for example, from 24 to
   "21001": 18
 ```
 
-## Semantics
+The writer uses `yaml.safe_dump` with block style and sorted keys. It rewrites
+the complete mapping rather than preserving comments, key order, or manual
+formatting.
 
-- Missing file: treated as empty memory; the first run seeds silently (no flood of
-  "full" emails on the first run for a new term).
-- Empty file: parsed as an empty dict via `yaml.safe_load` null normalization.
-- A CRN absent from memory fires the "now full" event when detected as full.
-- A CRN present fires again only when `current_capacity > remembered_capacity`.
-- Waitlist enrollment changes are noise and do not write to memory.
+### Read and validation behavior
 
-## Operations
+`load_memory(path)` uses `yaml.safe_load`.
 
-| Function | Behavior |
-| --- | --- |
-| `load_memory(path)` | Returns the mapping, or `{}` when file is absent or empty |
-| `save_memory(path, memory)` | Writes with `yaml.safe_dump`; keys sorted; no flow style |
-| `detect_full_events(rows, term_code, memory)` | Returns events; does not update memory |
-| `record_full_events(memory, term_code, events)` | Records fired events into the mapping in place; returns `None` |
-| `seed_full_sections(rows, term_code, memory)` | Seeds every currently-full section without firing events; returns `None` |
+- A missing file returns `{}`.
+- An empty file, whose YAML value is `null`, also returns `{}`.
+- Invalid YAML raises the PyYAML parser error to the caller.
+- A non-empty YAML value is returned as parsed. The loader performs no schema,
+  key-type, or capacity-type validation.
 
-## Reset
+The report logic requires the canonical mapping above. A list or scalar cannot
+serve as memory because later code reads term entries with `.get()`. Wrong key
+types fail to match, and a non-integer capacity can fail the capacity
+comparison. Restore the canonical mapping before running the report.
 
-- Delete the file to reset memory for all terms.
-- Remove a single top-level key to reset one term only.
+`save_memory(path, memory)` uses `yaml.safe_dump` and overwrites its target. It
+does not create a missing parent directory itself; the report workflow creates
+`cache/` first.
+
+### Notification semantics
+
+The file records only sections that were full. For each term and CRN it stores
+the capacity, not enrollment, title, label, or waitlist count.
+
+- For a term absent from memory, the first report run seeds every currently
+  full section and sends no backlog notifications.
+- Later, a full CRN absent from that term's mapping emits a notification.
+- A remembered CRN emits another notification only when its current full
+  capacity is greater than the stored capacity.
+- Refilling at the same or a lower capacity is silent.
+- Waitlist-only changes do not update this memory.
+- A dry run leaves the file unchanged.
+
+After a sent report, the pipeline records fired events and saves the complete
+mapping. A baseline refresh also saves silently seeded full sections.
+
+### Reset and repair
+
+- Remove the file to reset all terms. The next run seeds its current full
+  sections without email.
+- Remove one top-level term key to reset that term only.
+- For malformed or incorrectly typed data, replace the file with the canonical
+  mapping above, or remove it and let the next non-dry run seed a new baseline.
 
 ## Related
 
-- [USAGE.md](USAGE.md): full-course memory semantics in the user workflow context.
-- [FILE_FORMATS.md](FILE_FORMATS.md): all input and output file formats.
+- [FILE_FORMATS.md](FILE_FORMATS.md): complete format inventory.
+- [USAGE.md](USAGE.md): email-report workflow and notification behavior.
+- [TROUBLESHOOTING.md](TROUBLESHOOTING.md): first-run notification diagnosis.

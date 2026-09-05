@@ -1,6 +1,7 @@
-# USAGE.md
+# Usage
 
-How to run the course-schedule tools, CLI flags, and practical examples.
+Build Excel course grids from live Banner HTML or a schedule CSV. The email command compares
+current course data with its cache and can send only through the local macOS helper.
 
 ## Main workflows
 
@@ -10,13 +11,14 @@ Download course HTML for each subject, parse it, and write the merged
 schedule-grid workbook for the term:
 
 ```bash
-./build_grids_from_html.py -t 202710
+source source_me.sh && python3 build_grids_from_html.py -t 202710
 ```
 
 Override the default subject set with repeatable `--subject` flags:
 
 ```bash
-./build_grids_from_html.py -t 202710 --subject MATH --subject PSYC
+source source_me.sh && python3 build_grids_from_html.py \
+    -t 202710 --subject MATH --subject PSYC
 ```
 
 The default subject set is `BIOL`, `PHYS`, `CHEM`, `BCHM`. The library is
@@ -44,65 +46,67 @@ Rows whose `Course_Status` is not `Active` are skipped.
 
 ### Email report daemon (tmux)
 
-Start the recurring schedule-change email daemon in a tmux session:
+Build the helper, approve one foreground test message, and start the recurring daemon:
 
 ```bash
+./build_course_finder_mailer.sh
+source source_me.sh && python3 test_email_permission.py
 ./run_email_tmux.sh
 ```
 
-Each new daemon launch first sends a plain startup test email to
-`nvoss@roosevelt.edu` from inside the daemon's tmux process context. If a macOS
-update reset Mail.app Automation access, click **Allow** in the system prompt.
+Each new daemon launch also sends a plain startup test email to
+`nvoss@roosevelt.edu` through `CourseFinderMailer.app`, the same stable native
+helper used by scheduled reports. If macOS asks whether CourseFinderMailer may
+control Mail, click **Allow**.
 The scheduler starts only after the test message sends successfully; a denial
 or Mail error leaves the daemon stopped so it cannot enter a failing restart
 cycle.
 
-Run `./run_email_tmux.sh` from a prompt-capable Terminal.app session, not SSH or
-a background agent. The dedicated `course_email_daemon` tmux server isolates
-the daemon from unrelated tmux-server ancestry; the startup email remains the
-authoritative check of the resulting macOS privacy identity.
+The daemon runs as the short `cfmail` session on the normal tmux server, so it appears in
+plain `tmux ls` output. Mail authorization belongs to the helper app, not Terminal, Python,
+SSH, or tmux process ancestry. Keep the generated app at the repository root. Rebuilding it
+changes its local ad-hoc signature and may require approving Automation again.
 
-Run the same Mail transport from the current terminal without starting the
-daemon:
+Run the same helper transport without starting the daemon:
 
 ```bash
 source source_me.sh && python3 test_email_permission.py
 ```
 
-This manual command verifies the current terminal context. The automatic launch
-test is the authoritative daemon check because macOS Automation permission also
-depends on process ancestry. If macOS no longer presents a prompt after access
-was denied, open **System Settings > Privacy & Security > Automation**, allow
-the listed process to control Mail, then launch again from Terminal.app.
-No prompt plus a delivered startup email means Automation access was already
-approved for that exact daemon context.
+The helper has a stable application identity, so this manual test and scheduled reports use
+the same Automation grant. If the request is denied, open **System Settings > Privacy &
+Security > Automation** and allow CourseFinderMailer to control Mail. No prompt plus a
+delivered startup email means that grant is already active. When consent is undecided, the
+helper shows a status window before it asks macOS to display the system prompt.
 
 If the older default-socket daemon is still running, stop it once before using
-the dedicated server:
+the short session name:
 
 ```bash
 tmux kill-session -t course_email
 ./run_email_tmux.sh
 ```
 
+The launcher also refuses to start a duplicate if a previous isolated `cfmail` server or the
+`course_email_daemon` server is still running. Follow the removal command it prints before
+relaunching.
+
 Attach to the running session:
 
 ```bash
-tmux -L course_email_daemon attach -t course_email
+tmux attach -t cfmail
 ```
 
-The daemon sends reports Mon-Thu at 8:03am and Fri at 8:03am and 6:07pm.
-The term code is set in `run_email_tmux.sh` (`TERM_CODE` variable).
-The tmux process supervises the pure-stdlib Python scheduler and restarts it
-after an unexpected exit. Report generation and AppleScript remain in
-short-lived child processes, so the sleeping daemon does not create a
-permanent Python Dock icon.
+The abbreviated equivalent is `tmux a -t cfmail`.
 
-Runtime activity and errors are written to
-`logs/email_schedule_report.log`. This includes retry attempts, exhausted
-request failures, uncaught baseline-refresh/report tracebacks, scheduled-child exit
-statuses, startup test-email results, and supervisor restarts. The log rotates
-at 5 MB and keeps three numbered backups.
+The daemon sends reports Mon-Thu at 8:03am and Fri at 8:03am and 6:07pm. Its term code is the
+`TERM_CODE` value in `run_email_tmux.sh`. The tmux supervisor restarts an unexpectedly exited
+scheduler; it repeats the real test email before starting each replacement scheduler process.
+Report generation and the native Mail helper remain short-lived processes.
+
+Runtime activity and errors go to `logs/email_schedule_report.log`, including retries,
+failures, startup-test results, and supervisor restarts. The log rotates at 5 MB and keeps
+three numbered backups.
 
 ### Refreshing the baseline
 
@@ -114,32 +118,23 @@ source source_me.sh && python3 tools/email_schedule_report.py \
 	-t 202710 --refresh-baseline
 ```
 
-`./run_email_tmux.sh` starts the detached tmux session immediately. Inside that
-session, the supervisor refreshes the baseline by default before entering the
-scheduler loop, so the first scheduled report is delta-only instead of a full
-initial dump. To preserve changes accumulated during downtime for the next
-report, skip that refresh:
+`./run_email_tmux.sh` refreshes the baseline by default before its scheduler loop, so the
+first scheduled report is delta-only instead of a full initial dump. To preserve changes
+accumulated during downtime for the next report, skip that refresh:
 
 ```bash
 ./run_email_tmux.sh --skip-baseline-refresh
 ```
 
-Transient network failures and HTTP 408, 429, 500, 502, 503, and 504 responses
-are retried with a fresh session and bounded backoff. If the default baseline
-refresh still fails, the supervisor preserves the existing cache, logs a
-warning, and enters the scheduler loop. The launcher confirms that the detached
-tmux session survives startup before reporting success. The older `--prime` and
-`--no-prime` spellings remain accepted for compatibility.
+Transient network failures and HTTP 408, 429, 500, 502, 503, and 504 responses retry with a
+fresh session and bounded backoff. If baseline refresh fails, the supervisor preserves the
+existing cache, logs a warning, and enters the scheduler loop. `--prime` and `--no-prime`
+remain accepted aliases.
 
-An HTTP 5xx response for one subject does not suppress real course changes from
-subjects the Roosevelt server returned successfully. Retryable statuses exhaust
-their bounded backoff first. A run with zero meaningful course changes sends no
-email; the unavailable subject remains visible in the report log. When another
-subject has a meaningful change, the email names the unavailable subject, the
-attachment omits it, and its prior cache and full-section memory stay untouched.
-The report uses the same successful downloads for change detection and the
-attachment. Baseline refresh remains all-or-nothing so it never persists a
-partial starting snapshot.
+An unavailable subject does not suppress changes from successful subjects. A run with no
+meaningful changes sends no email. If another subject changes, the email names the unavailable
+subject, its attachment omits that subject, and its prior cache and full-course memory remain
+untouched. Baseline refresh is all-or-nothing.
 
 ## Advanced tools
 
@@ -148,10 +143,13 @@ partial starting snapshot.
 Run a single report pass without the daemon:
 
 ```bash
-# Dry run (detect changes, print output, do not send email):
+# Normal report (dry-run is the default: detect changes, log email text, do not send):
+source source_me.sh && python3 tools/email_schedule_report.py -t 202710
+
+# Explicit dry run (same behavior as the default):
 source source_me.sh && python3 tools/email_schedule_report.py -t 202710 -n
 
-# Send the email immediately:
+# Send a report immediately when there are meaningful changes:
 source source_me.sh && python3 tools/email_schedule_report.py -t 202710 -e
 
 # Run in loop mode (same schedule as the tmux daemon):
@@ -161,7 +159,8 @@ source source_me.sh && python3 tools/email_schedule_report.py -t 202710 --loop
 Flags:
 - `-t / --term TERM_CODE`: Banner term code (required).
 - `--subject SUBJ` (repeatable): subject codes to include; default `BIOL PHYS CHEM BCHM`.
-- `-n / --dry-run`: detect changes and print; do not send email (default).
+- `-n / --dry-run`: detect changes and log the report; do not build an attachment or send
+  email. This is the default.
 - `-e / --send-email`: send the email via Mail.app.
 - `--loop`: run on the recurring schedule instead of once.
 - `--refresh-baseline`: fetch and persist a no-email starting snapshot; cannot
@@ -169,16 +168,16 @@ Flags:
 
 ### Mail.app startup test
 
-Send one plain email to `nvoss@roosevelt.edu` through the same AppleScript and
-Mail.app transport used by scheduled reports:
+Send one plain email to `nvoss@roosevelt.edu` through the same
+CourseFinderMailer and Mail.app transport used by scheduled reports:
 
 ```bash
 source source_me.sh && python3 test_email_permission.py
 ```
 
-Use this foreground command to request or verify Automation permission for the
-current terminal without downloading course data, changing caches, or starting
-the daemon. A successful daemon launch remains the exact-context check.
+Use this command to request or verify the helper's Automation permission
+without downloading course data, changing caches, or starting the daemon. Run
+`./build_course_finder_mailer.sh` first if the generated app is absent.
 
 ### tools/build_grid_from_csv.py
 
@@ -211,10 +210,18 @@ all-courses) regardless of other flags; per-grid campus or level filters do not 
 - `--schaumburg`: keep only Schaumburg campus sections.
 - `--lab-only`: keep likely lab sections using section suffix `B`, `LAB` token detection, and `LEC` exclusion.
 
-## Output
+## Inputs and outputs
 
-Each build command writes one `.xlsx` schedule grid. When `-o` is omitted the
-filename is derived from the active filters (subjects, levels, numbers, campus).
+- The HTML command downloads one Banner page for each selected subject and writes dated merged
+  workbooks in `output/`, with a semester-label copy. It also creates preset per-grid and audit
+  workbooks.
+- The CSV command reads a draft-schedule CSV. It requires `Meeting_Days`, `Begin_Time`, and
+  `End_Time`; `SUBJ_CRSE_SEC`, `SUBJ`, `CRSE`, and `SEC` label rows. Inactive rows are skipped.
+- A CSV grid writes to `-o OUTPUT` or a filter-derived `.xlsx` filename in the current directory.
+- Email state is gitignored at the repo root: `cache/` holds snapshot CSVs and
+  `full_course_memory.yaml`; generated attachments go to `output/`; logs go to `logs/`.
+
+Each grid workbook uses this layout:
 
 Grid layout:
 - 15-minute time slots from 07:00 to 23:45 on each row.
@@ -260,17 +267,13 @@ refilled.
 
 ## Notes
 
-- The HTML parser is layout-dependent and may need updates if the course-listing
-  site markup changes.
+- The HTML parser is layout-dependent and may need updates if the course-listing site markup
+  changes.
 - Multi-line "When / Where" entries are split into multiple meetings for the same
   section.
-- The download path uses a sessioned GET plus POST to select subjects without
-  PST variables. Transient failures retry with a fresh session. A final HTTP
-  error response is written to `error_500.html`; connection and timeout
-  failures have no response body and are recorded only in the report log. In
-  the email path, an HTTP 5xx response produces a partial report after bounded
-  retries when the status is retryable, with an explicit data-unavailable
-  notice.
+- The download path uses a sessioned GET plus POST to select subjects without PST variables.
+  A final HTTP error response is written to `error_500.html`; connection and timeout failures
+  have no response body and are recorded only in the report log.
 - The HTML workflow downloads one subject per request and merges the results.
 - Filenames produced by `./build_grids_from_html.py` include the term code; tabs are
   merged in fixed order and the raw-data tab is appended last.

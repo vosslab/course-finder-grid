@@ -2,6 +2,44 @@
 
 Organized log of released versions and their release dates.
 
+## v26.09 - Unreleased
+
+### Highlights
+
+- Added the native `CourseFinderMailer` helper for Mail delivery. It accepts
+  private, bounded requests, sends only to the established recipients, and
+  accepts generated xlsx attachments only from `output/`.
+- The email daemon now runs a startup delivery and Mail-authorization test
+  before scheduling. Its normal tmux session is `cfmail`, which is visible in
+  `tmux ls` and can be attached with `tmux a -t cfmail`.
+- Mail authorization now belongs to the locally signed helper instead of the
+  Python process. It uses LaunchServices and typed AppleScript handler
+  arguments, avoiding dynamic script-source interpolation.
+
+### Notable fixes
+
+- Failed startup authorization stops the daemon rather than leaving a scheduler
+  running that cannot deliver email.
+- Replaced the launcher's fixed-delay readiness check with an explicit
+  supervisor result, and give every launch a private status directory to prevent
+  stale status files from passing the gate.
+- Removed the unused `py-applescript` dependency and stopped logging complete
+  AppleScript source that could contain message bodies.
+
+### Compatibility notes
+
+- On the first launch, macOS may ask for `CourseFinderMailer` permission to
+  automate Mail. Approve that prompt before scheduled reports can send email.
+- The launcher recognizes prior isolated `cfmail` and `course_email_daemon`
+  sessions during migration, preventing a second scheduler from starting.
+
+### Validation
+
+- Added an offline request-boundary test for rejected arbitrary recipients;
+  actual Mail delivery and TCC consent remain manual macOS acceptance checks.
+- Verified the fast suite, native build, shell syntax, plist, signature, lint,
+  and whitespace checks after the final audit fixes.
+
 ## 26.06 (2026-06-29)
 
 Initial structured release under CalVer (`YY.MM`).
