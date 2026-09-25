@@ -1,15 +1,32 @@
-# === UNIVERSAL ===
+# === UNIVERSAL === [PROPAGATED - LOCAL EDITS OVERWRITTEN]
 .DS_Store
-report_*.txt
-output*/
+/node_modules/
+/.env
+/report_*.txt
+/output*/
+/generated/
+/graphify-out/
 _temp*.?*
-OTHER_REPOS/
-# === LOCAL ===
+/temp/
+/tests/_temp/
+/OTHER_REPOS/
+/LOCAL_ONLY/
+
+# === PYTHON === [PROPAGATED - LOCAL EDITS OVERWRITTEN]
+build/
+dist/
+sdist/
+*.egg
+*.egg-info/
+site/
+
+# -------------------- LOCAL REPOSITORY RULES --------------------
+# ADD YOUR CUSTOM IGNORES BELOW
+# Propagation preserves this section.
 # Runtime state lives at the repo root, out of the course_scheduling/ package;
 # data/ holds the tracked sample input and stays tracked.
 cache/
 logs/
-output/
 /CourseFinderMailer.app/
 # Final HTTP error response saved by the course downloader for diagnosis
 error_500.html
@@ -21,10 +38,3 @@ course_scheduling/csv_cache/
 course_scheduling/logs/
 course_scheduling/*_debug.csv
 course_scheduling/filtered_input.csv
-# === PYTHON ===
-build/
-dist/
-sdist/
-*.egg
-*.egg-info/
-site/

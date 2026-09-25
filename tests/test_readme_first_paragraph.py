@@ -1,3 +1,5 @@
+# This file is vendored. Local changes can and will be overwritten by propagation.
+
 import os
 import re
 
@@ -5,7 +7,7 @@ import file_utils
 
 REPO_ROOT = file_utils.get_repo_root()
 README_PATH = os.path.join(REPO_ROOT, "README.md")
-MAX_ABOUT_CHARS = 250
+MAX_ABOUT_CHARS = 350
 
 # Inline link or image: optional leading '!', [text](url). Markdown
 # images (leading '!') are the syntax used for status badges like
@@ -161,6 +163,39 @@ def test_readme_exists() -> None:
 
 
 #============================================
+def test_readme_has_single_h1_title() -> None:
+	# First Markdown heading must be a single '# Title' line, and there
+	# must be exactly one level-one heading in the file.
+	text = _read_readme_text()
+	heading_lines = []
+	in_fence = False
+	for raw_line in text.splitlines():
+		stripped = raw_line.strip()
+		# Skip content inside fenced code blocks
+		if stripped.startswith("```") or stripped.startswith("~~~"):
+			in_fence = not in_fence
+			continue
+		if in_fence:
+			continue
+		if stripped.startswith("#"):
+			heading_lines.append(stripped)
+	assert heading_lines, f"README.md has no Markdown headings: {README_PATH}"
+	first = heading_lines[0]
+	assert first.startswith("# ") and not first.startswith("## "), (
+		f"First README heading must be a level-one '# Project Name' line, got: {first!r}"
+	)
+	title_text = first[2:].strip()
+	assert title_text, "First README heading is '#' with no title text after it."
+	h1_count = 0
+	for heading in heading_lines:
+		if heading.startswith("# ") and not heading.startswith("## "):
+			h1_count += 1
+	assert h1_count == 1, (
+		f"README.md must contain exactly one '# Title' heading, found {h1_count}."
+	)
+
+
+#============================================
 def test_first_paragraph_exists() -> None:
 	# First paragraph must be present and non-empty
 	paragraph = _load_first_paragraph()
@@ -171,12 +206,12 @@ def test_first_paragraph_exists() -> None:
 
 
 #============================================
-def test_first_paragraph_at_most_250_chars() -> None:
-	# GitHub About field hard-caps at 250 Python characters (len()).
+def test_first_paragraph_at_most_350_chars() -> None:
+	# GitHub About field hard-caps at 350 Python characters (len()).
 	paragraph = _load_first_paragraph()
 	length = len(paragraph)
 	assert length <= MAX_ABOUT_CHARS, (
-		f"First paragraph must be 250 Python characters or fewer "
+		f"First paragraph must be 350 Python characters or fewer "
 		f"(len(paragraph)). Actual: {length} characters; limit: {MAX_ABOUT_CHARS}. "
 		f"Paragraph text:\n{paragraph}"
 	)

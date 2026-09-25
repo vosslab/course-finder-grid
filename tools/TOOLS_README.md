@@ -1,71 +1,42 @@
 # tools scripts
 
-`tools/` holds standalone entry-point scripts for repository-facing tasks. These
-files are not product code and are not an importable library namespace. For
-maintainer-only helpers, see [devel/DEVEL_README.md](../devel/DEVEL_README.md).
+> This file is vendored. Local changes can and will be overwritten by propagation.
 
-Use this folder for scripts that users or maintainers run directly to perform a
-focused repository task:
+`tools/` holds optional standalone utilities for people working with the application's domain.
+A user supplies domain input and receives a useful domain result. The canonical placement policy
+is [docs/REPO_STYLE.md](../docs/REPO_STYLE.md#scripts-and-executables).
 
-- Repository inspection, reporting, or one-off transformations.
-- Commands that coordinate a real package's public behavior.
-- Small launchers that keep command-line options near the command a person runs.
+## Utility shape
 
-Do not put reusable library code, runtime application code, or permanent tests
-here. Put reusable behavior in an explicit importable package, and keep the
-`tools/` file as a thin entry point that imports from that package.
+A tool may be one self-contained script or one self-contained directory. A substantial utility can
+keep its own helpers inside its directory and use standard-library modules and installed
+dependencies declared by the repository. Keep the complete utility runnable independently of the
+repository's local packages.
+
+Typical tools convert, validate, inspect, or transform user-supplied data and produce a report,
+document, image, or other useful artifact.
+
+## Placement classifier
+
+- Use `tools/` for an optional standalone user utility whose domain input produces a domain result.
+- Use [devel/DEVEL_README.md](../devel/DEVEL_README.md) for maintainer and
+  repository-engineering commands.
+- Use the application CLI or package for primary workflows and reusable application behavior.
+- Use an optional local `launchers/` directory for thin compatibility or convenience delegates
+  into the application.
+
+For example, HTML-to-PDF conversion and playlist validation are tools. A repository map,
+dependency refresh, source generation, screenshot evidence, benchmark, or release command is
+maintainer work.
 
 ## Import boundary
 
-`tools/`, `devel/`, and `tests/` are support directories, not package roots.
-No file imports `tools`, `devel`, or `tests` as a package, including a file that
-already lives in one of those directories. A `tools/` script also does not
-import a sibling script; shared behavior belongs in a real package instead.
-
-The related folders have narrow, intentional exceptions:
-
-- `devel/` may use flat sibling helpers for vendored development tooling. That
-  exception does not permit `devel.*` package imports.
-- Tests may use flat, same-directory helpers such as `file_utils`, because
-  `tests/conftest.py` and pytest arrange that directory. They do not import
-  `tests.file_utils` or another `tests.*` package path.
-
-## Current tool scripts
-
-| File | Kind of work |
-| --- | --- |
-| [build_grid_from_csv.py](build_grid_from_csv.py) | Build one schedule grid from a draft CSV export. |
-| [email_schedule_report.py](email_schedule_report.py) | Run change detection once or on its schedule. |
-| [run_email_scheduler.sh](run_email_scheduler.sh) | Supervise the scheduled report loop for the root tmux launcher. |
-
-## Migration direction
-
-The support-directory gate is detection only. When propagation reports a
-violation, the consumer repository's maintainer owns the repair; this template
-does not modify consumer code.
-
-Move reusable behavior into the consumer's real package and leave a thin
-`tools/` entry point behind. A test that must exercise a standalone script may
-instead load it by file path, as
-`protein-image-grader/tests/test_copy_archive_images.py` does, without making
-`tools/` a package.
-
-The completed audit identifies these original plan-audited consumers and their
-migration targets:
-
-| Consumer repository | Module that moves into its package |
-| --- | --- |
-| `populous-python-nvl` | `tools.headless_runner` into `populous_game/` |
-| `iptv-filters` | `tools.validate_m3u` into `iptv_filters/` |
-| `marp-slides` | `tools.pptx_to_marp` into `marp_lib/` |
-| `track-runner-virtual-dolly-cam` | `tools.refresh_mode_docs` into `track_runner/` |
-
-The original four reports remain test importers, but the completed survey found
-runtime drift too: `populous-python-nvl` imports `tools.headless_runner` from
-runtime and smoke code, while `marp-slides` tool scripts import
-`odp_to_marp`, `odp_visibility`, and `pptx_to_marp` from each other. Those
-findings use the same package-plus-thin-script migration; they do not widen the
-support-directory exception.
+Use `tools/`, `devel/`, `tests/`, and `launchers/` as support locations rather than
+repository-level import packages. A standalone tool remains independent of repository-local
+packages. It may use its own nested helpers, standard-library modules, and declared installed
+dependencies. Repository-local package imports belong in the application or an application-facing
+launcher. The support-directory gate preserves this boundary, `devel/` flat sibling helpers, and
+test-local helpers.
 
 ## Running scripts
 
