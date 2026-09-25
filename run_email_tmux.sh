@@ -23,7 +23,7 @@ LEGACY_TMUX_SOCKET="course_email_daemon"
 REPO_ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 LOGFILE="$REPO_ROOT/logs/email_schedule_report.log"
 MAILER_EXECUTABLE="$REPO_ROOT/CourseFinderMailer.app/Contents/MacOS/CourseFinderMailer"
-TERM_CODE="202710"
+TERM_CODE="202720"
 REFRESH_BASELINE_ON=1
 
 if [ "$#" -eq 0 ]; then

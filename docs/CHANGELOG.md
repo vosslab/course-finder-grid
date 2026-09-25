@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-25
+
+### Behavior or Interface Changes
+
+- Updated the email daemon to report Spring 2027 (`202720`).
+
 ## 2026-09-02
 
 ### Behavior or Interface Changes
